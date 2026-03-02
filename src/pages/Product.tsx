@@ -1,3 +1,4 @@
+// src/pages/Product.tsx
 import { useEffect, useState } from "react";
 import type { Product } from "../types/Product";
 import { getProducts } from "../services/productService";
@@ -7,12 +8,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     getProducts()
-      .then((data) => {
-        // data é { "product created": {...} }
-        // Transformamos em array para poder mapear
-        const productArray = data["product created"] ? [data["product created"]] : [];
-        setProducts(productArray);
-      })
+      .then(setProducts) // already an array
       .catch(console.error);
   }, []);
 
