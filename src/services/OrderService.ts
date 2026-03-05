@@ -1,48 +1,60 @@
 import type { Order, ItemOrder } from '../types/Order';
 
-// URL da sua API (ajuste conforme sua configuração)
-const API_URL = 'http://localhost:8000'; // ou a URL da sua API
+const API_URL = 'http://localhost:8000';
 
 export const orderService = {
-  // GET /orders - Buscar todos os pedidos
-  async getAll(): Promise<Order[]> {
-    const response = await fetch(`${API_URL}/orders`);
+  // GET /pedidos - Buscar todos os pedidos
+  async getAll(): Promise<{ orders: Order[] }> {  // 👈 Retorno corrigido
+    const response = await fetch(`${API_URL}/pedidos`);
     if (!response.ok) throw new Error('Erro ao buscar pedidos');
-    return response.json();
+    
+    const data = await response.json();
+    console.log('📦 Dados brutos da API:', data); // Para debug
+    
+    // A API retorna { orders: [...] }
+    return data; // 👈 Retorna o objeto completo
   },
 
-  // GET /orders/{id} - Buscar um pedido
-  async getById(id: number): Promise<Order> {
-    const response = await fetch(`${API_URL}/orders/${id}`);
+  // GET /pedidos/{id} - Buscar um pedido
+  async getById(id: number): Promise<{ order: Order }> {  // 👈 Retorno corrigido
+    const response = await fetch(`${API_URL}/pedidos/${id}`);
     if (!response.ok) throw new Error('Pedido não encontrado');
-    return response.json();
+    
+    const data = await response.json();
+    console.log(`📦 Pedido ${id}:`, data);
+    
+    return data; // 👈 Retorna o objeto completo
   },
 
-  // POST /orders - Criar novo pedido
-  async create(data: Omit<Order, 'id' | 'order_date'>): Promise<Order> {
-    const response = await fetch(`${API_URL}/orders`, {
+  // POST /pedidos - Criar novo pedido
+  async create(data: Omit<Order, 'id' | 'order_date'>): Promise<{ order: Order }> {
+    const response = await fetch(`${API_URL}/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Erro ao criar pedido');
-    return response.json();
+    
+    const result = await response.json();
+    return result; // 👈 Retorna o objeto completo
   },
 
-  // PUT /orders/{id} - Atualizar pedido
-  async update(id: number, data: Partial<Order>): Promise<Order> {
-    const response = await fetch(`${API_URL}/orders/${id}`, {
+  // PUT /pedidos/{id} - Atualizar pedido
+  async update(id: number, data: Partial<Order>): Promise<{ order: Order }> {
+    const response = await fetch(`${API_URL}/pedidos/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Erro ao atualizar pedido');
-    return response.json();
+    
+    const result = await response.json();
+    return result;
   },
 
-  // DELETE /orders/{id} - Deletar pedido
+  // DELETE /pedidos/{id} - Deletar pedido
   async delete(id: number): Promise<void> {
-    const response = await fetch(`${API_URL}/orders/${id}`, {
+    const response = await fetch(`${API_URL}/pedidos/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Erro ao deletar pedido');

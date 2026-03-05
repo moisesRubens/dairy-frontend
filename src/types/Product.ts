@@ -7,6 +7,13 @@ export type Product = {
     liters: number;
 }
 
+export type ProductWithUnit = Product & {
+  unitValue: number;
+  unitType: string;
+  unitIcon: string;
+  unitLabel: string;
+};
+
 export type ProductApiResponse = {
   products: Product[];
 };
