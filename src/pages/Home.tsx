@@ -26,15 +26,19 @@ function Home() {
 
   const loadTodayOrders = async () => {
     try {
-      // Busca todos os pedidos
       const response = await orderService.getAll();
       
-      // Filtra apenas os pedidos de HOJE
-      const today = new Date().toISOString().split('T')[0]; // "2026-03-05"
+      // Pega a data de HOJE no formato YYYY-MM-DD (data local)
+      const hoje = new Date();
+      const ano = hoje.getFullYear();
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const dia = String(hoje.getDate()).padStart(2, '0');
+      const hojeStr = `${ano}-${mes}-${dia}`;
       
       const filteredOrders = response.orders.filter(order => {
-        const orderDate = order.order_date.split('T')[0];
-        return orderDate === today;
+        // Pega só a data (YYYY-MM-DD) do pedido
+        const dataPedido = order.order_date.split('T')[0];
+        return dataPedido === hojeStr;
       });
       
       setTodayOrders(filteredOrders);
@@ -52,7 +56,6 @@ function Home() {
     navigate('/login');
   };
 
-  // Calcular faturamento do dia
   const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total_value, 0);
 
   if (!user || loading) {
@@ -104,7 +107,7 @@ function Home() {
           <h3>Resumo do Dia</h3>
           <div className="info-cards">
             <div className="info-card">
-              <span className="info-label">Pedidos Hoje</span>
+              <span className="info-label">Pedidos</span>
               <span className="info-value">{todayOrders.length}</span>
             </div>
             <div className="info-card">
