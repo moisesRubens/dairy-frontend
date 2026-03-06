@@ -56,6 +56,25 @@ function Home() {
     navigate('/login');
   };
 
+  const handleViewTodayOrders = () => {
+    // Pega a data de hoje no formato YYYY-MM-DD
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const hojeStr = `${ano}-${mes}-${dia}`;
+    
+    // Navega para a página de pedidos com o filtro de data
+    navigate('/orders', { 
+      state: { 
+        filters: {
+          dateFrom: hojeStr,
+          dateTo: hojeStr
+        }
+      } 
+    });
+  };
+
   const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total_value, 0);
 
   if (!user || loading) {
@@ -104,7 +123,23 @@ function Home() {
         </div>
 
         <div className="info-section">
-          <h3>Resumo do Dia</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            <h3 style={{ margin: 0 }}>Resumo do Dia</h3>
+            <button 
+              onClick={handleViewTodayOrders} 
+              style={{
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.9rem'
+              }}
+            >
+              Visualizar
+            </button>
+          </div>
           <div className="info-cards">
             <div className="info-card">
               <span className="info-label">Pedidos</span>
