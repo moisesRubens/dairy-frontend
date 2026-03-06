@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import type { ProductWithUnit } from "../types/Product";
-import { getProducts } from "../services/productService";
 import { authService } from '../services/AuthService';
 import React from "react";
 import { 
@@ -21,20 +20,63 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const token = authService.getToken();
-    if (!user || !token) {
+    const currentUser = authService.getUser();
+    
+    if (!currentUser || !token) {
       navigate('/login');
       return;
     }
 
-    loadProducts();
-  }, [navigate, user]);
+    setUser(currentUser);
+    carregarProdutos();
+  }, [navigate]);
 
-  const loadProducts = async () => {
+  const carregarProdutos = async () => {
     setLoading(true);
     try {
-      // Agora já vem com a unidade calculada!
-      const data = await getProducts();
-      setProducts(data);
+      const token = authService.getToken();
+      
+      const response = await fetch('http://localhost:8000/produto/', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        }
+      });
+      
+      const data = await response.json();
+      
+      // Calcula a unidade para cada produto
+      const produtosComUnidade = (data.products || []).map((product: any) => {
+        const amount = product.amount ?? 0;
+        const kg = product.kg ?? 0;
+        const liters = product.liters ?? 0;
+        
+        let unitIcon = '📦';
+        let unitLabel = 'Sem unidade';
+        
+        if (amount > 0) {
+          unitIcon = '📦';
+          unitLabel = `${amount} unidade${amount > 1 ? 's' : ''}`;
+        } else if (liters > 0) {
+          unitIcon = '💧';
+          unitLabel = `${liters} litro${liters > 1 ? 's' : ''}`;
+        } else if (kg > 0) {
+          unitIcon = '⚖️';
+          unitLabel = `${kg} quilo${kg > 1 ? 's' : ''}`;
+        }
+        
+        return {
+          ...product,
+          amount,
+          kg,
+          liters,
+          unitIcon,
+          unitLabel
+        };
+      });
+      
+      setProducts(produtosComUnidade);
+      
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
     } finally {
@@ -109,7 +151,7 @@ export default function ProductsPage() {
                   
                   <div className="product-price-section">
                     <p className="product-price">
-                      R$ {product.price.toFixed(2)}
+                      R$ {product.price.toFixed(2).replace('.', ',')}
                     </p>
                     <button className="product-action" title="Adicionar ao carrinho">
                       <ShoppingBag size={20} />

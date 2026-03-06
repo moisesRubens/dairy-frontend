@@ -1,12 +1,18 @@
+import { authService } from './AuthService';
 import type { Product, ProductApiResponse, ProductWithUnit } from "../types/Product";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}/produto${endpoint}`;
+  
+  const token = authService.getToken();
 
   const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      'Authorization': `Bearer ${token}`,
+      "Content-Type": "application/json" 
+    },
     ...options,
   });
 
@@ -20,34 +26,50 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 // Função para calcular a unidade do produto
 const calculateProductUnit = (product: Product): ProductWithUnit => {
-  if (product.amount > 0) {
+  const amount = product.amount ?? 0;
+  const kg = product.kg ?? 0;
+  const liters = product.liters ?? 0;
+  
+  if (amount > 0) {
     return {
       ...product,
-      unitValue: product.amount,
+      amount,
+      kg,
+      liters,
+      unitValue: amount,
       unitType: 'un',
       unitIcon: '📦',
-      unitLabel: `${product.amount} unidade${product.amount > 1 ? 's' : ''}`
+      unitLabel: `${amount} unidade${amount > 1 ? 's' : ''}`
     };
-  } else if (product.liters > 0) {
+  } else if (liters > 0) {
     return {
       ...product,
-      unitValue: product.liters,
+      amount,
+      kg,
+      liters,
+      unitValue: liters,
       unitType: 'L',
       unitIcon: '💧',
-      unitLabel: `${product.liters} litro${product.liters > 1 ? 's' : ''}`
+      unitLabel: `${liters} litro${liters > 1 ? 's' : ''}`
     };
-  } else if (product.kg > 0) {
+  } else if (kg > 0) {
     return {
       ...product,
-      unitValue: product.kg,
+      amount,
+      kg,
+      liters,
+      unitValue: kg,
       unitType: 'kg',
       unitIcon: '⚖️',
-      unitLabel: `${product.kg} quilo${product.kg > 1 ? 's' : ''}`
+      unitLabel: `${kg} quilo${kg > 1 ? 's' : ''}`
     };
   }
   
   return {
     ...product,
+    amount,
+    kg,
+    liters,
     unitValue: 0,
     unitType: '',
     unitIcon: '📦',
@@ -57,11 +79,19 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
 
 // GET /produto - Listar todos os produtos com unidade calculada
 export async function getProducts(): Promise<ProductWithUnit[]> {
-  const data = await request<ProductApiResponse>("/");
-  const products = data.products || [];
-  
-  // Aplica o cálculo de unidade em cada produto
-  return products.map(calculateProductUnit);
+  try {
+    const data = await request<ProductApiResponse>("/");
+    console.log('📦 Resposta da API:', data);
+    
+    // 🔥 CORREÇÃO IMPORTANTE: data já é { products: [...] }
+    const products = data.products || [];
+    console.log('📋 Produtos:', products);
+    
+    return products.map(calculateProductUnit);
+  } catch (error) {
+    console.error('❌ Erro em getProducts:', error);
+    return [];
+  }
 }
 
 // GET /produto/{id} - Buscar produto por ID com unidade calculada
