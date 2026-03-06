@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // Adicione useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { Order } from '../types/Order';
 import { orderService } from '../services/OrderService';
 import { authService } from '../services/AuthService';
@@ -7,24 +7,20 @@ import '../styles/Base.css';
 import '../styles/Order.css';
 
 export function OrdersPage() {
-  const location = useLocation(); // Para acessar o state passado na navegação
+  const location = useLocation();
   const navigate = useNavigate();
   
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Estados para filtros - inicializa com o state da navegação se existir
+  // Estados para filtros - simplificado para usar os parâmetros da API
   const [filters, setFilters] = useState(() => {
-    // Verifica se veio algum filtro da Home
     const stateFilters = location.state?.filters;
     return {
-      orderNumber: '',
-      customerName: '',
-      status: '',
-      dateFrom: stateFilters?.dateFrom || '',
-      dateTo: stateFilters?.dateTo || ''
+      date: stateFilters?.date || '',
+      description: '',
+      status: '' // 'true' ou 'false' como string
     };
   });
   
@@ -33,79 +29,40 @@ export function OrdersPage() {
   const [itemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   
-  // Efeito para limpar o state da navegação depois de usar
   useEffect(() => {
     if (location.state?.filters) {
-      // Opcional: limpar o state para não reaplicar em atualizações
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
   useEffect(() => {
     loadOrders();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [orders, filters]);
-
-  // ... resto do código igual (loadOrders, applyFilters, etc)
+  }, [filters]); // Recarrega quando os filtros mudam
 
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await orderService.getAll();
+      
+      // Prepara os filtros para enviar à API
+      const apiFilters: any = {};
+      if (filters.date) apiFilters.date = filters.date;
+      if (filters.description) apiFilters.description = filters.description;
+      if (filters.status) apiFilters.status = filters.status;
+      
+      console.log('🔍 Aplicando filtros:', apiFilters);
+      
+      const response = await orderService.getAll(apiFilters);
+      console.log('📦 Pedidos recebidos:', response.orders);
+      
       setOrders(response.orders);
-      setFilteredOrders(response.orders);
+      setTotalPages(Math.ceil(response.orders.length / itemsPerPage));
+      setCurrentPage(1);
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
       setError('Erro ao carregar pedidos. Tente novamente.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const applyFilters = () => {
-    let filtered = [...orders];
-
-    if (filters.orderNumber) {
-      filtered = filtered.filter(order => 
-        order.id.toString().includes(filters.orderNumber)
-      );
-    }
-
-    if (filters.customerName) {
-      filtered = filtered.filter(order =>
-        order.customer_name.toLowerCase().includes(filters.customerName.toLowerCase())
-      );
-    }
-
-    if (filters.status) {
-      filtered = filtered.filter(order => order.status === filters.status);
-    }
-
-    if (filters.dateFrom) {
-      const dateFrom = new Date(filters.dateFrom);
-      dateFrom.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.order_date);
-        orderDate.setHours(0, 0, 0, 0);
-        return orderDate >= dateFrom;
-      });
-    }
-
-    if (filters.dateTo) {
-      const dateTo = new Date(filters.dateTo);
-      dateTo.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.order_date);
-        return orderDate <= dateTo;
-      });
-    }
-
-    setFilteredOrders(filtered);
-    setTotalPages(Math.ceil(filtered.length / itemsPerPage));
-    setCurrentPage(1);
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -118,11 +75,9 @@ export function OrdersPage() {
 
   const clearFilters = () => {
     setFilters({
-      orderNumber: '',
-      customerName: '',
-      status: '',
-      dateFrom: '',
-      dateTo: ''
+      date: '',
+      description: '',
+      status: ''
     });
   };
 
@@ -153,7 +108,7 @@ export function OrdersPage() {
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
+  const currentOrders = orders.slice(indexOfFirstItem, indexOfLastItem);
 
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
@@ -178,21 +133,13 @@ export function OrdersPage() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { className: string; text: string }> = {
-      pending: { className: 'status-badge status-pending', text: 'Pendente' },
-      approved: { className: 'status-badge status-approved', text: 'Aprovado' },
-      delivered: { className: 'status-badge status-delivered', text: 'Entregue' },
-      cancelled: { className: 'status-badge status-cancelled', text: 'Cancelado' }
-    };
-    
-    const config = statusConfig[status] || { className: 'status-badge', text: status };
-    
-    return (
-      <span className={config.className}>
-        {config.text}
-      </span>
-    );
+  // Adapta o status boolean para exibição
+  const getStatusBadge = (status: boolean) => {
+    if (status) {
+      return <span className="status-badge status-pending">Pendente</span>;
+    } else {
+      return <span className="status-badge status-cancelled">Cancelado</span>;
+    }
   };
 
   if (loading) {
@@ -205,7 +152,6 @@ export function OrdersPage() {
 
   return (
     <div className="page-container">
-      {/* Header - usando classes do base.css */}
       <header className="page-header">
         <div className="container header-content">
           <h1 className="page-title">LATICÍNIOS BOA ESPERANÇA</h1>
@@ -218,9 +164,7 @@ export function OrdersPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container" style={{ paddingTop: '40px', paddingBottom: '40px' }}>
-        {/* Header with Actions */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -229,7 +173,7 @@ export function OrdersPage() {
         }}>
           <div>
             <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>Pedidos</h2>
-            <p style={{ color: 'var(--text-secondary)' }}>Total: {filteredOrders.length} pedidos encontrados</p>
+            <p style={{ color: 'var(--text-secondary)' }}>Total: {orders.length} pedidos encontrados</p>
           </div>
           <button
             onClick={() => navigate('/orders/new')}
@@ -239,29 +183,27 @@ export function OrdersPage() {
           </button>
         </div>
 
-        {/* Filters Section - usando estilos locais do Order.css */}
         <div className="filters-section">
           <h3>Filtros</h3>
           <div className="filters-grid">
             <div className="filter-group">
-              <label>Nº Pedido</label>
+              <label>Data</label>
               <input
-                type="text"
-                name="orderNumber"
-                value={filters.orderNumber}
+                type="date"
+                name="date"
+                value={filters.date}
                 onChange={handleFilterChange}
-                placeholder="Buscar por número..."
               />
             </div>
 
             <div className="filter-group">
-              <label>Cliente</label>
+              <label>Descrição</label>
               <input
                 type="text"
-                name="customerName"
-                value={filters.customerName}
+                name="description"
+                value={filters.description}
                 onChange={handleFilterChange}
-                placeholder="Nome do cliente..."
+                placeholder="Buscar por descrição..."
               />
             </div>
 
@@ -273,31 +215,9 @@ export function OrdersPage() {
                 onChange={handleFilterChange}
               >
                 <option value="">Todos</option>
-                <option value="pending">Pendente</option>
-                <option value="approved">Aprovado</option>
-                <option value="delivered">Entregue</option>
-                <option value="cancelled">Cancelado</option>
+                <option value="true">Pendente</option>
+                <option value="false">Cancelado</option>
               </select>
-            </div>
-
-            <div className="filter-group">
-              <label>Data Inicial</label>
-              <input
-                type="date"
-                name="dateFrom"
-                value={filters.dateFrom}
-                onChange={handleFilterChange}
-              />
-            </div>
-
-            <div className="filter-group">
-              <label>Data Final</label>
-              <input
-                type="date"
-                name="dateTo"
-                value={filters.dateTo}
-                onChange={handleFilterChange}
-              />
             </div>
           </div>
 
@@ -310,14 +230,12 @@ export function OrdersPage() {
           )}
         </div>
 
-        {/* Error Message - usando classe do base.css */}
         {error && (
           <div className="error-message">
             {error}
           </div>
         )}
 
-        {/* Table */}
         <div className="table-container">
           <table className="orders-table">
             <thead>
@@ -341,7 +259,7 @@ export function OrdersPage() {
                 currentOrders.map((order) => (
                   <tr key={order.id}>
                     <td className="order-id">#{order.id}</td>
-                    <td>{order.customer_name}</td>
+                    <td>{order.customer_name || '—'}</td>
                     <td>{formatDateTime(order.order_date)}</td>
                     <td className="order-value">{formatCurrency(order.total_value)}</td>
                     <td>{getStatusBadge(order.status)}</td>
@@ -376,11 +294,10 @@ export function OrdersPage() {
             </tbody>
           </table>
 
-          {/* Pagination */}
-          {filteredOrders.length > 0 && (
+          {orders.length > 0 && (
             <div className="pagination">
               <div className="pagination-info">
-                Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filteredOrders.length)} de {filteredOrders.length} resultados
+                Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, orders.length)} de {orders.length} resultados
               </div>
               <div className="pagination-controls">
                 <button

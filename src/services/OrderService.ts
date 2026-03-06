@@ -1,16 +1,37 @@
 import type { Order } from '../types/Order';
-import { authService } from './AuthService'; // 👈 IMPORTANTE: importar o authService
+import { authService } from './AuthService';
 
 const API_URL = 'http://localhost:8000';
 
 export const orderService = {
-  // GET /pedidos - Buscar todos os pedidos
-  async getAll(): Promise<{ orders: Order[] }> {
-    const token = authService.getToken(); // 👈 PEGAR O TOKEN
+  // GET /pedidos - Buscar todos os pedidos com filtros opcionais
+  async getAll(filters?: {
+    date?: string;
+    description?: string;
+    status?: string; // 'true' ou 'false' como string
+  }): Promise<{ orders: Order[] }> {
+    const token = authService.getToken();
     
-    const response = await fetch(`${API_URL}/pedidos`, {
+    // Construir URL com parâmetros
+    let url = `${API_URL}/pedidos`;
+    
+    if (filters) {
+      const params = new URLSearchParams();
+      if (filters.date) params.append('date', filters.date);
+      if (filters.description) params.append('description', filters.description);
+      if (filters.status !== undefined) params.append('status', filters.status);
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
+    
+    console.log('📤 Requisição para:', url);
+    
+    const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${token}`, // 👈 ENVIAR O TOKEN
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -18,7 +39,7 @@ export const orderService = {
     if (!response.ok) throw new Error('Erro ao buscar pedidos');
     
     const data = await response.json();
-    console.log('📦 Dados brutos da API:', data);
+    console.log('📦 Dados recebidos:', data);
     
     return data;
   },
@@ -40,11 +61,11 @@ export const orderService = {
     return data;
   },
 
-  // POST /pedidos - Criar novo pedido
-  async create(data: Omit<Order, 'id' | 'order_date'>): Promise<{ order: Order }> {
+  // POST /pedidos/cadastrar - Criar novo pedido
+  async create(data: any): Promise<{ order: Order }> {
     const token = authService.getToken();
     
-    const response = await fetch(`${API_URL}/pedidos`, {
+    const response = await fetch(`${API_URL}/pedidos/cadastrar`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`,
@@ -53,26 +74,10 @@ export const orderService = {
       body: JSON.stringify(data),
     });
     
-    if (!response.ok) throw new Error('Erro ao criar pedido');
-    
-    const result = await response.json();
-    return result;
-  },
-
-  // PUT /pedidos/{id} - Atualizar pedido
-  async update(id: number, data: Partial<Order>): Promise<{ order: Order }> {
-    const token = authService.getToken();
-    
-    const response = await fetch(`${API_URL}/pedidos/${id}`, {
-      method: 'PUT',
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) throw new Error('Erro ao atualizar pedido');
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro ao criar pedido: ${response.status} - ${errorText}`);
+    }
     
     const result = await response.json();
     return result;
