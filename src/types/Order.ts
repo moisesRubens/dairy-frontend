@@ -4,7 +4,7 @@ export type Order = {
   customer_name: string;
   order_date: string;
   total_value: number;
-  status: boolean; // true = pendente, false = cancelado (é booleano no banco)
+  status: boolean; 
   sale_point_id?: number;
   items?: OrderItem[];
   description?: string;

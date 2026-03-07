@@ -4,15 +4,12 @@ import { authService } from './AuthService';
 const API_URL = 'http://localhost:8000';
 
 export const orderService = {
-  // GET /pedidos - Buscar todos os pedidos com filtros opcionais
   async getAll(filters?: {
     date?: string;
     description?: string;
-    status?: string; // 'true' ou 'false' como string
+    status?: string;
   }): Promise<{ orders: Order[] }> {
     const token = authService.getToken();
-    
-    // Construir URL com parâmetros
     let url = `${API_URL}/pedidos`;
     
     if (filters) {
@@ -26,21 +23,16 @@ export const orderService = {
         url += `?${queryString}`;
       }
     }
-    
     console.log('📤 Requisição para:', url);
-    
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
-    
     if (!response.ok) throw new Error('Erro ao buscar pedidos');
-    
     const data = await response.json();
     console.log('📦 Dados recebidos:', data);
-    
     return data;
   },
 
@@ -65,6 +57,9 @@ export const orderService = {
   async create(data: any): Promise<{ order: Order }> {
     const token = authService.getToken();
     
+    console.log('📤 OrderService.create - Dados recebidos:', data);
+    console.log('📤 OrderService.create - Token:', token ? 'presente' : 'ausente');
+    
     const response = await fetch(`${API_URL}/pedidos/cadastrar`, {
       method: 'POST',
       headers: { 
@@ -74,16 +69,19 @@ export const orderService = {
       body: JSON.stringify(data),
     });
     
+    console.log('📥 OrderService.create - Status da resposta:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('❌ OrderService.create - Erro:', errorText);
       throw new Error(`Erro ao criar pedido: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
+    console.log('✅ OrderService.create - Resposta:', result);
     return result;
   },
 
-  // DELETE /pedidos/{id} - Deletar pedido
   async delete(id: number): Promise<void> {
     const token = authService.getToken();
     

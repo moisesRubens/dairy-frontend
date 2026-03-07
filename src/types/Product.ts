@@ -54,3 +54,21 @@ export interface RetirarProdutosResponse {
     total_erros: number;
   };
 }
+ 
+export type RetiradaResponse = {
+  id: number;
+  name: string;
+  price: number;
+  amount: number | null;
+  kg: number | null;
+  liters: number | null;
+  quantidade_retirada: number;
+  unidade_retirada: string;
+  data_retirada: string;
+  observacao: string | null;
+  sale_point_id: number;
+};
+
+export type RetiradasApiResponse = {
+  retiradas: RetiradaResponse[];
+};

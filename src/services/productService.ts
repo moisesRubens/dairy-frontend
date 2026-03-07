@@ -1,7 +1,7 @@
 import { authService } from './AuthService';
 import type { 
   Product, 
-  ProductApiResponse, 
+  RetiradaResponse, 
   ProductWithUnit,
   RetiradaPorPonto,
   RetirarProdutosResponse 
@@ -83,14 +83,10 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
   };
 };
 
-// GET /produto - Listar todos os produtos com unidade calculada
-// GET /produto - Listar todos os produtos com unidade calculada
-// GET /produto - Listar todos os produtos com unidade calculada
+
 export async function getProducts(): Promise<ProductWithUnit[]> {
   try {
     console.log('🔍 Chamando getProducts...');
-    
-    // 🔥 FAZ A REQUISIÇÃO DIRETAMENTE PARA VER O ERRO
     const token = authService.getToken();
     const url = `${API_URL}/produto/`;
     
@@ -127,18 +123,23 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   }
 }
 
-// ✅ NOVO: GET /produto/{id_sale_point}/retiradas - Buscar retiradas por ponto de venda
-// ✅ GET /produto/{id_sale_point}/retiradas - Buscar retiradas por ponto de venda
-export async function getRetiradasPorPontoVenda(salePointId: number): Promise<RetiradaPorPonto[]> {
+
+// productService.ts - CORRIGIDO!
+// Adicione no productService.ts, na função getRetiradasPorPontoVenda:
+export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
   try {
-    console.log('🔍 Buscando retiradas para o ponto:', salePointId);
+    console.log('🔍 Buscando retiradas do ponto de venda logado');
     
-    // 🔥 FAZ A REQUISIÇÃO DIRETAMENTE PARA VER A RESPOSTA CRUA
     const token = authService.getToken();
-    const url = `${API_URL}/produto/${salePointId}/retiradas`;
+    console.log('🔑 Token usado:', token ? `${token.substring(0, 20)}...` : 'NULO');
     
+    if (!token) {
+      console.error('❌ Token não encontrado!');
+      return [];
+    }
+    
+    const url = `${API_URL}/produto/retiradas`;
     console.log('📡 URL:', url);
-    console.log('🔑 Token:', token ? 'presente' : 'ausente');
     
     const response = await fetch(url, {
       headers: { 
@@ -148,26 +149,23 @@ export async function getRetiradasPorPontoVenda(salePointId: number): Promise<Re
     });
     
     console.log('📊 Status da resposta:', response.status);
-    console.log('📊 Headers:', response.headers.get('content-type'));
     
-    // 🔥 VER O TEXTO CRU DA RESPOSTA
-    const text = await response.text();
-    console.log('📝 Resposta CRUA (primeiros 200 caracteres):', text.substring(0, 200));
-    
-    if (!response.ok) {
-      throw new Error(`Erro na requisição: ${response.status} - ${text}`);
-    }
-    
-    // Tenta parsear o JSON
-    try {
-      const data = JSON.parse(text);
-      console.log('📦 Dados parseados:', data);
-      return data.retiradas || [];
-    } catch (e) {
-      console.error('❌ Erro ao parsear JSON. Resposta não é JSON válido');
-      console.error('📝 Resposta completa:', text);
+    if (response.status === 401) {
+      console.error('❌ Token inválido ou expirado');
+      // Redirecionar para login?
       return [];
     }
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erro na resposta:', errorText);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log('📦 Dados recebidos da API:', data);
+    
+    return data.retiradas || [];
     
   } catch (error) {
     console.error('❌ Erro ao buscar retiradas:', error);

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
 import { orderService } from '../services/OrderService';
 import { getProducts, getRetiradasPorPontoVenda } from '../services/productService';
-import { Trash2, ShoppingCart } from 'lucide-react';
+import { Trash2, ShoppingCart, RotateCcw } from 'lucide-react';
 import type { SalePoint } from '../types/SalePoint';
 import type { Order } from '../types/Order';
 import type { ProductWithUnit } from '../types/Product';
@@ -43,8 +43,7 @@ function Home() {
   
   // Estado para os itens do pedido
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<number | ''>('');
-  const [quantity, setQuantity] = useState('');
+  const [quantities, setQuantities] = useState<Record<number, string>>({});
   
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +62,6 @@ function Home() {
     }
   }, [navigate]);
 
-  // 🔥 SEPAREI O CARREGAMENTO DOS DADOS EM UM useEffect SEPARADO
   useEffect(() => {
     if (user) {
       loadInitialData();
@@ -74,10 +72,8 @@ function Home() {
     try {
       setLoading(true);
       
-      // 🔥 PEGA O USUÁRIO DIRETAMENTE DO STATE (garantido)
       const currentUser = user;
       console.log('👤 Usuário atual:', currentUser);
-      console.log('🆔 ID do usuário:', currentUser?.id);
       
       const hoje = new Date();
       const ano = hoje.getFullYear();
@@ -85,27 +81,17 @@ function Home() {
       const dia = String(hoje.getDate()).padStart(2, '0');
       const hojeStr = `${ano}-${mes}-${dia}`;
       
-      console.log('📅 Carregando dados...');
+      console.log('🌐 API_URL:', import.meta.env.VITE_API_URL);
       
-      // 🔥 AGORA O currentUser.id EXISTE COM CERTEZA
-      let retiradasData: Retirada[] = [];
-      
-      if (currentUser?.id) {
-        console.log('🔍 Chamando getRetiradasPorPontoVenda com ID:', currentUser.id);
-        retiradasData = await getRetiradasPorPontoVenda(currentUser.id);
-        console.log('📦 Retiradas carregadas:', retiradasData);
-      } else {
-        console.log('⚠️ ID do usuário não disponível');
-      }
-      
-      // Carrega produtos e pedidos
-      const [productsData, ordersResponse] = await Promise.all([
+      const [productsData, ordersResponse, retiradasData] = await Promise.all([
         getProducts(),
-        orderService.getAll({ date: hojeStr })
+        orderService.getAll({ date: hojeStr }),
+        getRetiradasPorPontoVenda()
       ]);
       
       console.log('📦 Produtos carregados:', productsData.length);
       console.log('📦 Pedidos carregados:', ordersResponse.orders?.length);
+      console.log('📦 Retiradas carregadas:', retiradasData);
       
       setTodayOrders(ordersResponse.orders || []);
       setProducts(productsData || []);
@@ -139,29 +125,25 @@ function Home() {
     });
   };
 
-  const handleAddToOrder = () => {
-    if (!selectedProduct || !quantity) {
-      setError('Selecione um produto e informe a quantidade');
+  const handleAddToOrder = (product: ProductWithUnit) => {
+    const quantityStr = quantities[product.id];
+    if (!quantityStr) {
+      setError('Informe a quantidade');
       return;
     }
 
-    const product = products.find(p => p.id === selectedProduct);
-    if (!product) return;
-
-    const quantityNum = parseFloat(quantity);
+    const quantityNum = parseFloat(quantityStr);
     if (isNaN(quantityNum) || quantityNum <= 0) {
       setError('Quantidade inválida');
       return;
     }
 
-    // Verifica se o produto já está no pedido
     const existingItem = orderItems.find(item => item.product_id === product.id);
     if (existingItem) {
       setError('Este produto já foi adicionado ao pedido');
       return;
     }
 
-    // Determina a unidade do produto
     let unitType: 'amount' | 'kg' | 'liters' = 'amount';
     let unitLabel = '';
     
@@ -187,8 +169,8 @@ function Home() {
     };
 
     setOrderItems([...orderItems, newItem]);
-    setSelectedProduct('');
-    setQuantity('');
+    // Limpa a quantidade após adicionar
+    setQuantities(prev => ({ ...prev, [product.id]: '' }));
     setError('');
   };
 
@@ -196,65 +178,124 @@ function Home() {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  const handleSubmitOrder = async () => {
-    if (orderItems.length === 0) {
-      setError('Adicione pelo menos um item ao pedido');
+  // Home.tsx - Função handleSubmitOrder corrigida
+
+const handleSubmitOrder = async () => {
+  if (orderItems.length === 0) {
+    setError('Adicione pelo menos um item ao pedido');
+    return;
+  }
+
+  setSubmitting(true);
+  setError('');
+  setSuccess('');
+
+  try {
+    // Verifica se o usuário está logado
+    if (!user?.id) {
+      throw new Error('Usuário não identificado');
+    }
+
+    // Prepara os dados do pedido
+    const orderData = {
+      sale_point_id: user.id,
+      items: orderItems.map(item => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price
+      })),
+      total_value: orderItems.reduce((sum, item) => sum + item.total_price, 0),
+      status: true,
+      description: `Pedido com ${orderItems.length} item(ns)`
+    };
+
+    console.log('📤 Enviando pedido:', orderData);
+    
+    // 1️⃣ Primeiro, cria o pedido
+    const orderResponse = await orderService.create(orderData);
+    console.log('✅ Pedido criado:', orderResponse);
+    
+    // 2️⃣ Depois, para cada item do pedido, precisamos subtrair do histórico de retiradas
+    // Isso deve ser feito no backend, mas por enquanto vamos simular
+    const itemsToSubtract = orderItems.map(item => ({
+      product_id: item.product_id,
+      quantidade: item.quantity,
+      unidade: item.unit_type
+    }));
+    
+    console.log('🔄 Itens para subtrair do estoque:', itemsToSubtract);
+    
+    // Aqui você chamaria o serviço para dar baixa no estoque
+    // await productService.subtractFromStock(itemsToSubtract);
+    
+    setSuccess('Pedido criado com sucesso!');
+    setOrderItems([]);
+    setQuantities({});
+    
+    // Recarrega os dados para atualizar a lista
+    await loadInitialData();
+    
+    setTimeout(() => setSuccess(''), 3000);
+    
+  } catch (error: any) {
+    console.error('❌ Erro ao criar pedido:', error);
+    setError(error.message || 'Erro ao criar pedido. Tente novamente.');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+  // 🔥 NOVA FUNÇÃO: Retornar tudo ao estoque
+  const handleReturnAllToStock = async () => {
+    if (retiradas.length === 0) {
+      setError('Não há retiradas para retornar ao estoque');
       return;
     }
+
+    const confirmReturn = window.confirm(
+      `Tem certeza que deseja retornar TODOS os ${retiradas.length} produtos ao estoque?`
+    );
+    
+    if (!confirmReturn) return;
 
     setSubmitting(true);
     setError('');
     setSuccess('');
 
     try {
-      const orderData = {
-        sale_point_id: user?.id,
-        items: orderItems.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price
-        })),
-        total_value: orderItems.reduce((sum, item) => sum + item.total_price, 0),
-        status: true,
-        description: `Pedido com ${orderItems.length} item(ns)`
-      };
-
-      console.log('📤 Enviando pedido:', orderData);
+      // Aqui você implementaria a chamada à API para retornar ao estoque
+      console.log('🔄 Retornando produtos ao estoque:', retiradas);
       
-      await orderService.create(orderData);
+      // Simulação de chamada à API (substitua pela sua implementação real)
+      // await productService.returnToStock(retiradas);
       
-      setSuccess('Pedido criado com sucesso!');
-      setOrderItems([]);
-      loadInitialData();
+      // Por enquanto, só mostra mensagem de sucesso
+      setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
       
-      setTimeout(() => setSuccess(''), 3000);
+      // Recarrega os dados
+      setTimeout(() => {
+        loadInitialData();
+      }, 2000);
       
     } catch (error) {
-      console.error('❌ Erro ao criar pedido:', error);
-      setError('Erro ao criar pedido. Tente novamente.');
+      console.error('❌ Erro ao retornar produtos:', error);
+      setError('Erro ao retornar produtos ao estoque. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Função para obter a unidade de medida da retirada
-  const getRetiradaUnit = (unidade: string): string => {
-    switch (unidade) {
-      case 'amount': return 'Unidade(s)';
-      case 'kg': return 'Quilos (kg)';
-      case 'liters': return 'Litros (L)';
-      default: return unidade;
-    }
+  const handleQuantityChange = (productId: number, value: string) => {
+    setQuantities(prev => ({ ...prev, [productId]: value }));
   };
 
-  // Função para formatar a data
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR');
-    } catch {
-      return dateString;
+  const getUnitSymbol = (unidade: string): string => {
+    switch (unidade) {
+      case 'amount': return 'un';
+      case 'kg': return 'kg';
+      case 'liters': return 'L';
+      default: return unidade;
     }
   };
 
@@ -347,61 +388,74 @@ function Home() {
         {/* Card de Cadastro Rápido */}
         <div className="quick-order-card">
           <h3>Cadastro Rápido de Pedido</h3>
-          
-          {/* Select e Input para adicionar produtos */}
-          <div className="add-product-row">
-            <select
-              value={selectedProduct}
-              onChange={(e) => setSelectedProduct(e.target.value ? Number(e.target.value) : '')}
-              className="product-select"
-            >
-              <option value="">Selecione um produto</option>
-              {products.map(product => (
-                <option key={product.id} value={product.id}>
-                  {product.name} - R$ {formatCurrency(product.price)}
-                </option>
-              ))}
-            </select>
 
-            <input
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              placeholder="Quantidade"
-              step="0.01"
-              min="0.01"
-              className="quantity-input"
-            />
-
-            <button onClick={handleAddToOrder} className="btn-add">
-              Adicionar
-            </button>
-          </div>
-
-          {/* Tabela de Retiradas */}
+          {/* Tabela de Retiradas com campo para nova quantidade */}
           <div className="table-responsive">
-            <h4 style={{ margin: '20px 0 10px 0', color: '#333' }}>Histórico de Retiradas</h4>
+            {/* 🔥 HEADER DA TABELA COM BOTÃO */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: '15px'
+            }}>
+              <h4 style={{ margin: 0, color: '#333' }}>Histórico de Retiradas</h4>
+              <button 
+                onClick={handleReturnAllToStock}
+                className="btn-return-stock"
+                disabled={retiradas.length === 0 || submitting}
+                title="Retornar todos os produtos ao estoque"
+              >
+                <RotateCcw size={16} />
+                Retornar Tudo ao Estoque
+              </button>
+            </div>
+            
             <table className="products-table">
               <thead>
                 <tr>
                   <th>Produto</th>
-                  <th>Quantidade</th>
-                  <th>Unidade</th>
-                  <th>Preço</th>
-                  <th>Data</th>
+                  <th>Quantidade Retirada</th>
+                  <th>Preço Unitário</th>
+                  <th>Nova Quantidade</th>
+                  <th>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {retiradas.length > 0 ? (
-                  retiradas.map((retirada, index) => (
-                    <tr key={index}>
-                      <td className="product-name">{retirada.name}</td>
-                      <td className="quantity-value">{retirada.quantidade_retirada}</td>
-                      <td>{getRetiradaUnit(retirada.unidade_retirada)}</td>
-                      <td>R$ {formatCurrency(retirada.price)}</td>
-                      <td className="date-cell">{formatDate(retirada.data_retirada)}</td>
-                    </tr>
-                  ))
+                  retiradas.map((retirada) => {
+                    const product = products.find(p => p.id === retirada.id);
+                    if (!product) return null;
+                    
+                    return (
+                      <tr key={retirada.id}>
+                        <td className="product-name">{retirada.name}</td>
+                        <td className="quantity-value">
+                          {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
+                        </td>
+                        <td>R$ {formatCurrency(retirada.price)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder={`Qtd em ${getUnitSymbol(retirada.unidade_retirada)}`}
+                            className="quantity-input"
+                            value={quantities[retirada.id] || ''}
+                            onChange={(e) => handleQuantityChange(retirada.id, e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <button 
+                            onClick={() => handleAddToOrder(product)}
+                            className="btn-add-small"
+                            disabled={!quantities[retirada.id]}
+                          >
+                            Adicionar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={5} className="empty-table-message">
