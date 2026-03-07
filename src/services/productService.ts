@@ -1,5 +1,11 @@
 import { authService } from './AuthService';
-import type { Product, ProductApiResponse, ProductWithUnit } from "../types/Product";
+import type { 
+  Product, 
+  ProductApiResponse, 
+  ProductWithUnit,
+  RetiradaPorPonto,
+  RetirarProdutosResponse 
+} from "../types/Product";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -78,19 +84,115 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
 };
 
 // GET /produto - Listar todos os produtos com unidade calculada
+// GET /produto - Listar todos os produtos com unidade calculada
+// GET /produto - Listar todos os produtos com unidade calculada
 export async function getProducts(): Promise<ProductWithUnit[]> {
   try {
-    const data = await request<ProductApiResponse>("/");
-    console.log('📦 Resposta da API:', data);
+    console.log('🔍 Chamando getProducts...');
     
-    // 🔥 CORREÇÃO IMPORTANTE: data já é { products: [...] }
+    // 🔥 FAZ A REQUISIÇÃO DIRETAMENTE PARA VER O ERRO
+    const token = authService.getToken();
+    const url = `${API_URL}/produto/`;
+    
+    console.log('📡 URL:', url);
+    console.log('🔑 Token:', token ? 'presente' : 'ausente');
+    
+    const response = await fetch(url, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        "Content-Type": "application/json" 
+      }
+    });
+    
+    console.log('📊 Status da resposta:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Resposta de erro:', errorText);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log('📦 Dados recebidos (produtos):', data);
+    
+    // A API retorna { products: [...] }
     const products = data.products || [];
-    console.log('📋 Produtos:', products);
+    console.log('📋 Produtos encontrados:', products.length);
     
     return products.map(calculateProductUnit);
+    
   } catch (error) {
     console.error('❌ Erro em getProducts:', error);
     return [];
+  }
+}
+
+// ✅ NOVO: GET /produto/{id_sale_point}/retiradas - Buscar retiradas por ponto de venda
+// ✅ GET /produto/{id_sale_point}/retiradas - Buscar retiradas por ponto de venda
+export async function getRetiradasPorPontoVenda(salePointId: number): Promise<RetiradaPorPonto[]> {
+  try {
+    console.log('🔍 Buscando retiradas para o ponto:', salePointId);
+    
+    // 🔥 FAZ A REQUISIÇÃO DIRETAMENTE PARA VER A RESPOSTA CRUA
+    const token = authService.getToken();
+    const url = `${API_URL}/produto/${salePointId}/retiradas`;
+    
+    console.log('📡 URL:', url);
+    console.log('🔑 Token:', token ? 'presente' : 'ausente');
+    
+    const response = await fetch(url, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        "Content-Type": "application/json" 
+      }
+    });
+    
+    console.log('📊 Status da resposta:', response.status);
+    console.log('📊 Headers:', response.headers.get('content-type'));
+    
+    // 🔥 VER O TEXTO CRU DA RESPOSTA
+    const text = await response.text();
+    console.log('📝 Resposta CRUA (primeiros 200 caracteres):', text.substring(0, 200));
+    
+    if (!response.ok) {
+      throw new Error(`Erro na requisição: ${response.status} - ${text}`);
+    }
+    
+    // Tenta parsear o JSON
+    try {
+      const data = JSON.parse(text);
+      console.log('📦 Dados parseados:', data);
+      return data.retiradas || [];
+    } catch (e) {
+      console.error('❌ Erro ao parsear JSON. Resposta não é JSON válido');
+      console.error('📝 Resposta completa:', text);
+      return [];
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao buscar retiradas:', error);
+    return [];
+  }
+}
+
+// ✅ NOVO: POST /produto/retirar - Retirar produtos do estoque
+export async function retirarProdutos(
+  produtos: Array<{ product_id: number; quantidade: number; unidade: string }>,
+  observacao?: string
+): Promise<RetirarProdutosResponse> {
+  try {
+    const data = await request<RetirarProdutosResponse>("/retirar", {
+      method: 'POST',
+      body: JSON.stringify({
+        produtos,
+        observacao
+      }),
+    });
+    console.log('📦 Resultado da retirada:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Erro ao retirar produtos:', error);
+    throw error;
   }
 }
 
@@ -100,9 +202,9 @@ export async function getProductById(id: number): Promise<ProductWithUnit> {
   return calculateProductUnit(data);
 }
 
-// POST /produto - Criar novo produto
+// POST /produto/cadastrar - Criar novo produto
 export async function createProduct(product: Omit<Product, 'id'>): Promise<ProductWithUnit> {
-  const data = await request<Product>("/", {
+  const data = await request<Product>("/cadastrar", {
     method: 'POST',
     body: JSON.stringify(product),
   });

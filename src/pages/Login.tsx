@@ -11,12 +11,11 @@ function Login() {
 
   const navigate = useNavigate();
 
-  // Verificar se já está logado
   useEffect(() => {
     const token = authService.getToken();
     const user = authService.getUser();
     
-    if (token && user) {
+    if (token && user && user.id > 0) {
       navigate('/');
     }
   }, [navigate]);
@@ -33,18 +32,34 @@ function Login() {
     setErro('');
     
     try {
+      // 1. Faz login
       const response = await authService.login(usuario, senha);
-      authService.saveToken(response.access_token);
+      console.log('✅ Token recebido:', response.access_token);
       
-      // Como a API não retorna o usuário no login, vamos criar um objeto básico
-      authService.saveUser({ 
-        id: 0, 
-        name: usuario.split('@')[0], 
-        email: usuario 
-      });
+      // 2. DECODIFICA O TOKEN MANUALMENTE (MAIS CONFIÁVEL)
+      const tokenParts = response.access_token.split('.');
+      const payload = JSON.parse(atob(tokenParts[1]));
+      console.log('🔓 Payload do token:', payload);
       
+      // 3. Extrai o ID (deve ser "1" para o usuário "a")
+      const userId = parseInt(payload.sub);
+      console.log('🆔 ID do usuário:', userId);
+      
+      // 4. SALVA TUDO MANUALMENTE
+      localStorage.setItem('token', response.access_token);
+      localStorage.setItem('user', JSON.stringify({
+        id: userId,
+        name: usuario, // Salva o nome do usuário
+        email: usuario
+      }));
+      
+      console.log('✅ Login realizado com ID:', userId);
+      
+      // 5. Redireciona
       navigate('/');
+      
     } catch (error: any) {
+      console.error('❌ Erro no login:', error);
       setErro(error.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
@@ -65,7 +80,6 @@ function Login() {
           <div className="login-card">
             <h2 className="login-title">Entrar</h2>
             
-            {/* Mensagem de erro */}
             {erro && (
               <div className="error-message">
                 {erro}
