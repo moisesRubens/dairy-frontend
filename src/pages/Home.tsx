@@ -293,7 +293,7 @@ function Home() {
       // Usamos valores NEGATIVOS para ADICIONAR ao estoque
       const itemsParaRetornar = retiradas.map(retirada => ({
         product_id: retirada.product_id,
-        quantidade: -Math.abs(retirada.quantidade_retirada), // Valor negativo para adicionar ao estoque
+        quantidade: Math.abs(retirada.quantidade_retirada), // Valor negativo para adicionar ao estoque
         unidade: retirada.unidade_retirada
       }));
 
