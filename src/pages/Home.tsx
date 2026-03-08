@@ -350,16 +350,16 @@ function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0 }}>Resumo do Dia</h3>
             <button onClick={handleViewTodayOrders} className="btn-view-orders">
-              Visualizar
+              Visualizar pedidos
             </button>
           </div>
           <div className="info-cards">
             <div className="info-card">
-              <span className="info-label">Pedidos Hoje</span>
+              <span className="info-label">Pedidos</span>
               <span className="info-value">{todayOrders.length}</span>
             </div>
             <div className="info-card">
-              <span className="info-label">Faturamento Hoje</span>
+              <span className="info-label">Faturamento</span>
               <span className="info-value">
                 R$ {formatCurrency(todayRevenue)}
               </span>
@@ -369,7 +369,7 @@ function Home() {
 
         {/* Card de Cadastro Rápido */}
         <div className="quick-order-card">
-          <h3>Cadastro Rápido de Pedido</h3>
+          <h3>Cadastro de pedidos</h3>
 
           {/* Tabela de Retiradas */}
           <div className="table-responsive">
@@ -379,7 +379,6 @@ function Home() {
               alignItems: 'center',
               marginBottom: '15px'
             }}>
-              <h4 style={{ margin: 0, color: '#333' }}>Histórico de Retiradas</h4>
               <button 
                 onClick={handleReturnAllToStock}
                 className="btn-return-stock"
@@ -387,7 +386,7 @@ function Home() {
                 title="Retornar todos os produtos ao estoque"
               >
                 <RotateCcw size={16} />
-                Retornar Tudo ao Estoque
+                Retornar produtos ao estoque
               </button>
             </div>
             
@@ -395,9 +394,9 @@ function Home() {
               <thead>
                 <tr>
                   <th>Produto</th>
-                  <th>Quantidade Retirada</th>
-                  <th>Preço Unitário</th>
-                  <th>Nova Quantidade</th>
+                  <th>Em estoque</th>
+                  <th>Preço</th>
+                  <th>Quantidade</th>
                   <th>Ação</th>
                 </tr>
               </thead>
@@ -410,7 +409,7 @@ function Home() {
                     
                     return (
                       <tr key={retirada.id}>
-                        <td className="product-name">{retirada.name}</td>
+                        <td className="product-name">{product.name}</td>
                         <td className="quantity-value">
                           {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
                         </td>
