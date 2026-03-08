@@ -1,3 +1,4 @@
+// Home.tsx - Corrigido
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
@@ -19,14 +20,12 @@ type OrderItem = {
   unitLabel: string;
 };
 
-// Tipo para as retiradas
+// Tipo para as retiradas (agora com product_id)
 type Retirada = {
   id: number;
+  product_id: number;  // ← IMPORTANTE: precisa ter product_id
   name: string;
   price: number;
-  amount: number | null;
-  kg: number | null;
-  liters: number | null;
   quantidade_retirada: number;
   unidade_retirada: string;
   data_retirada: string;
@@ -40,15 +39,11 @@ function Home() {
   const [retiradas, setRetiradas] = useState<Retirada[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  
-  // Estado para os itens do pedido
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [quantities, setQuantities] = useState<Record<number, string>>({});
-  
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -80,8 +75,6 @@ function Home() {
       const mes = String(hoje.getMonth() + 1).padStart(2, '0');
       const dia = String(hoje.getDate()).padStart(2, '0');
       const hojeStr = `${ano}-${mes}-${dia}`;
-      
-      console.log('🌐 API_URL:', import.meta.env.VITE_API_URL);
       
       const [productsData, ordersResponse, retiradasData] = await Promise.all([
         getProducts(),
@@ -147,13 +140,13 @@ function Home() {
     let unitType: 'amount' | 'kg' | 'liters' = 'amount';
     let unitLabel = '';
     
-    if (product.amount > 0) {
+    if (product.amount && product.amount > 0) {
       unitType = 'amount';
       unitLabel = 'Unidade(s)';
-    } else if (product.kg > 0) {
+    } else if (product.kg && product.kg > 0) {
       unitType = 'kg';
       unitLabel = 'Quilos';
-    } else if (product.liters > 0) {
+    } else if (product.liters && product.liters > 0) {
       unitType = 'liters';
       unitLabel = 'Litros';
     }
@@ -169,7 +162,6 @@ function Home() {
     };
 
     setOrderItems([...orderItems, newItem]);
-    // Limpa a quantidade após adicionar
     setQuantities(prev => ({ ...prev, [product.id]: '' }));
     setError('');
   };
@@ -178,75 +170,69 @@ function Home() {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  // Home.tsx - Função handleSubmitOrder corrigida
-
-const handleSubmitOrder = async () => {
-  if (orderItems.length === 0) {
-    setError('Adicione pelo menos um item ao pedido');
-    return;
-  }
-
-  setSubmitting(true);
-  setError('');
-  setSuccess('');
-
-  try {
-    // Verifica se o usuário está logado
-    if (!user?.id) {
-      throw new Error('Usuário não identificado');
+  const handleSubmitOrder = async () => {
+    if (orderItems.length === 0) {
+      setError('Adicione pelo menos um item ao pedido');
+      return;
     }
+    
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
 
-    // Prepara os dados do pedido
-    const orderData = {
-      sale_point_id: user.id,
-      items: orderItems.map(item => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total_price: item.total_price
-      })),
-      total_value: orderItems.reduce((sum, item) => sum + item.total_price, 0),
-      status: true,
-      description: `Pedido com ${orderItems.length} item(ns)`
-    };
+    try {
+      if (!user?.id) {
+        throw new Error('Usuário não identificado');
+      }
 
-    console.log('📤 Enviando pedido:', orderData);
-    
-    // 1️⃣ Primeiro, cria o pedido
-    const orderResponse = await orderService.create(orderData);
-    console.log('✅ Pedido criado:', orderResponse);
-    
-    // 2️⃣ Depois, para cada item do pedido, precisamos subtrair do histórico de retiradas
-    // Isso deve ser feito no backend, mas por enquanto vamos simular
-    const itemsToSubtract = orderItems.map(item => ({
-      product_id: item.product_id,
-      quantidade: item.quantity,
-      unidade: item.unit_type
-    }));
-    
-    console.log('🔄 Itens para subtrair do estoque:', itemsToSubtract);
-    
-    // Aqui você chamaria o serviço para dar baixa no estoque
-    // await productService.subtractFromStock(itemsToSubtract);
-    
-    setSuccess('Pedido criado com sucesso!');
-    setOrderItems([]);
-    setQuantities({});
-    
-    // Recarrega os dados para atualizar a lista
-    await loadInitialData();
-    
-    setTimeout(() => setSuccess(''), 3000);
-    
-  } catch (error: any) {
-    console.error('❌ Erro ao criar pedido:', error);
-    setError(error.message || 'Erro ao criar pedido. Tente novamente.');
-  } finally {
-    setSubmitting(false);
-  }
-};
+      const items = orderItems.map(item => {
+        const itemData: any = {
+          product_id: item.product_id,
+        };
 
-  // 🔥 NOVA FUNÇÃO: Retornar tudo ao estoque
+        if (item.unit_type === 'amount') {
+          itemData.amount = item.quantity;
+          itemData.kg = 0;
+          itemData.liters = 0;
+        } else if (item.unit_type === 'kg') {
+          itemData.amount = 0;
+          itemData.kg = item.quantity;
+          itemData.liters = 0;
+        } else if (item.unit_type === 'liters') {
+          itemData.amount = 0;
+          itemData.kg = 0;
+          itemData.liters = item.quantity;
+        }
+
+        return itemData;
+      });
+
+      const orderData = {
+        description: `Pedido com ${orderItems.length} item(ns)`,
+        items: items
+      };
+
+      console.log('📤 Enviando pedido:', JSON.stringify(orderData, null, 2));
+      
+      const orderResponse = await orderService.create(orderData);
+      console.log('✅ Pedido criado:', orderResponse);
+      
+      setSuccess('Pedido criado com sucesso!');
+      setOrderItems([]);
+      setQuantities({});
+      
+      await loadInitialData();
+      
+      setTimeout(() => setSuccess(''), 3000);
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao criar pedido:', error);
+      setError(error.message || 'Erro ao criar pedido. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleReturnAllToStock = async () => {
     if (retiradas.length === 0) {
       setError('Não há retiradas para retornar ao estoque');
@@ -264,16 +250,13 @@ const handleSubmitOrder = async () => {
     setSuccess('');
 
     try {
-      // Aqui você implementaria a chamada à API para retornar ao estoque
       console.log('🔄 Retornando produtos ao estoque:', retiradas);
       
-      // Simulação de chamada à API (substitua pela sua implementação real)
+      // Aqui você implementaria a chamada à API
       // await productService.returnToStock(retiradas);
       
-      // Por enquanto, só mostra mensagem de sucesso
       setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
       
-      // Recarrega os dados
       setTimeout(() => {
         loadInitialData();
       }, 2000);
@@ -359,7 +342,6 @@ const handleSubmitOrder = async () => {
       </header>
 
       <main className="home-main">
-        {/* Mensagens de feedback */}
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
@@ -389,9 +371,8 @@ const handleSubmitOrder = async () => {
         <div className="quick-order-card">
           <h3>Cadastro Rápido de Pedido</h3>
 
-          {/* Tabela de Retiradas com campo para nova quantidade */}
+          {/* Tabela de Retiradas */}
           <div className="table-responsive">
-            {/* 🔥 HEADER DA TABELA COM BOTÃO */}
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -423,7 +404,8 @@ const handleSubmitOrder = async () => {
               <tbody>
                 {retiradas.length > 0 ? (
                   retiradas.map((retirada) => {
-                    const product = products.find(p => p.id === retirada.id);
+                    // Busca o produto usando product_id, não id
+                    const product = products.find(p => p.id === retirada.product_id);
                     if (!product) return null;
                     
                     return (
@@ -432,7 +414,7 @@ const handleSubmitOrder = async () => {
                         <td className="quantity-value">
                           {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
                         </td>
-                        <td>R$ {formatCurrency(retirada.price)}</td>
+                        <td>R$ {formatCurrency(product.price)}</td>
                         <td>
                           <input
                             type="number"
@@ -440,15 +422,15 @@ const handleSubmitOrder = async () => {
                             step="0.01"
                             placeholder={`Qtd em ${getUnitSymbol(retirada.unidade_retirada)}`}
                             className="quantity-input"
-                            value={quantities[retirada.id] || ''}
-                            onChange={(e) => handleQuantityChange(retirada.id, e.target.value)}
+                            value={quantities[retirada.product_id] || ''}
+                            onChange={(e) => handleQuantityChange(retirada.product_id, e.target.value)}
                           />
                         </td>
                         <td>
                           <button 
                             onClick={() => handleAddToOrder(product)}
                             className="btn-add-small"
-                            disabled={!quantities[retirada.id]}
+                            disabled={!quantities[retirada.product_id]}
                           >
                             Adicionar
                           </button>
@@ -500,8 +482,8 @@ const handleSubmitOrder = async () => {
               </div>
 
               <button 
-                onClick={handleSubmitOrder}
-                className="btn-save-order"
+                onClick={handleSubmitOrder} 
+                className="btn-save-order" 
                 disabled={submitting}
               >
                 {submitting ? 'Salvando...' : 'Salvar Pedido'}

@@ -1,10 +1,11 @@
+// types/Product.ts
 export type Product = {
     id: number;
     name: string;
     price: number;
-    amount: number;
-    kg: number;
-    liters: number;
+    amount: number | null;
+    kg: number | null;
+    liters: number | null;
 }
 
 export type ProductWithUnit = Product & {
@@ -18,23 +19,19 @@ export type ProductApiResponse = {
   products: Product[];
 };
 
-// 🔥 Tipo para retiradas por ponto de venda (agora com sale_point_id)
-export interface RetiradaPorPonto {
+export type RetiradaResponse = {
   id: number;
+  product_id: number;
   name: string;
   price: number;
-  amount: number | null;
-  kg: number | null;
-  liters: number | null;
   quantidade_retirada: number;
   unidade_retirada: string;
   data_retirada: string;
   observacao: string | null;
-  sale_point_id: number;  // ✅ AGORA TEMOS ISSO
-}
+  sale_point_id: number;
+};
 
-// Tipo para resposta de retirada
-export interface RetirarProdutosResponse {
+export type RetirarProdutosResponse = {
   sucesso: boolean;
   mensagem: string;
   detalhes: {
@@ -53,22 +50,4 @@ export interface RetirarProdutosResponse {
     total_sucessos: number;
     total_erros: number;
   };
-}
- 
-export type RetiradaResponse = {
-  id: number;
-  name: string;
-  price: number;
-  amount: number | null;
-  kg: number | null;
-  liters: number | null;
-  quantidade_retirada: number;
-  unidade_retirada: string;
-  data_retirada: string;
-  observacao: string | null;
-  sale_point_id: number;
-};
-
-export type RetiradasApiResponse = {
-  retiradas: RetiradaResponse[];
 };

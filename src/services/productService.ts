@@ -1,9 +1,9 @@
+// productService.ts
 import { authService } from './AuthService';
 import type { 
   Product, 
   RetiradaResponse, 
   ProductWithUnit,
-  RetiradaPorPonto,
   RetirarProdutosResponse 
 } from "../types/Product";
 
@@ -43,7 +43,7 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
       kg,
       liters,
       unitValue: amount,
-      unitType: 'un',
+      unitType: 'amount',
       unitIcon: '📦',
       unitLabel: `${amount} unidade${amount > 1 ? 's' : ''}`
     };
@@ -54,7 +54,7 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
       kg,
       liters,
       unitValue: liters,
-      unitType: 'L',
+      unitType: 'liters',
       unitIcon: '💧',
       unitLabel: `${liters} litro${liters > 1 ? 's' : ''}`
     };
@@ -83,15 +83,11 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
   };
 };
 
-
 export async function getProducts(): Promise<ProductWithUnit[]> {
   try {
     console.log('🔍 Chamando getProducts...');
     const token = authService.getToken();
     const url = `${API_URL}/produto/`;
-    
-    console.log('📡 URL:', url);
-    console.log('🔑 Token:', token ? 'presente' : 'ausente');
     
     const response = await fetch(url, {
       headers: { 
@@ -100,21 +96,14 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
       }
     });
     
-    console.log('📊 Status da resposta:', response.status);
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Resposta de erro:', errorText);
       return [];
     }
     
     const data = await response.json();
-    console.log('📦 Dados recebidos (produtos):', data);
     
     // A API retorna { products: [...] }
     const products = data.products || [];
-    console.log('📋 Produtos encontrados:', products.length);
-    
     return products.map(calculateProductUnit);
     
   } catch (error) {
@@ -123,15 +112,11 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   }
 }
 
-
-// productService.ts - CORRIGIDO!
-// Adicione no productService.ts, na função getRetiradasPorPontoVenda:
 export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
   try {
     console.log('🔍 Buscando retiradas do ponto de venda logado');
     
     const token = authService.getToken();
-    console.log('🔑 Token usado:', token ? `${token.substring(0, 20)}...` : 'NULO');
     
     if (!token) {
       console.error('❌ Token não encontrado!');
@@ -139,7 +124,6 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
     }
     
     const url = `${API_URL}/produto/retiradas`;
-    console.log('📡 URL:', url);
     
     const response = await fetch(url, {
       headers: { 
@@ -148,24 +132,45 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
       }
     });
     
-    console.log('📊 Status da resposta:', response.status);
-    
-    if (response.status === 401) {
-      console.error('❌ Token inválido ou expirado');
-      // Redirecionar para login?
-      return [];
-    }
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Erro na resposta:', errorText);
       return [];
     }
     
     const data = await response.json();
     console.log('📦 Dados recebidos da API:', data);
     
-    return data.retiradas || [];
+    // 🔥 MAPEAMENTO CORRETO baseado na estrutura da API
+    // A API retorna um array direto de retiradas
+    if (Array.isArray(data)) {
+      return data.map((item: any) => ({
+        id: item.id,
+        product_id: item.product_id,
+        name: item.nome || item.name || '',
+        price: 0, // Será preenchido com o preço do produto
+        quantidade_retirada: item.quantidade || 0,
+        unidade_retirada: item.unidade || 'amount',
+        data_retirada: item.data_retirada || item.data || new Date().toISOString(),
+        observacao: item.observacao || null,
+        sale_point_id: item.sale_point_id || 0
+      }));
+    }
+    
+    // Se a API retorna { retiradas: [...] }
+    if (data.retiradas && Array.isArray(data.retiradas)) {
+      return data.retiradas.map((item: any) => ({
+        id: item.id,
+        product_id: item.product_id,
+        name: item.nome || item.name || '',
+        price: 0,
+        quantidade_retirada: item.quantidade || 0,
+        unidade_retirada: item.unidade || 'amount',
+        data_retirada: item.data_retirada || item.data || new Date().toISOString(),
+        observacao: item.observacao || null,
+        sale_point_id: item.sale_point_id || 0
+      }));
+    }
+    
+    return [];
     
   } catch (error) {
     console.error('❌ Erro ao buscar retiradas:', error);
@@ -173,7 +178,6 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
   }
 }
 
-// ✅ NOVO: POST /produto/retirar - Retirar produtos do estoque
 export async function retirarProdutos(
   produtos: Array<{ product_id: number; quantidade: number; unidade: string }>,
   observacao?: string
@@ -186,7 +190,6 @@ export async function retirarProdutos(
         observacao
       }),
     });
-    console.log('📦 Resultado da retirada:', data);
     return data;
   } catch (error) {
     console.error('❌ Erro ao retirar produtos:', error);
@@ -194,13 +197,11 @@ export async function retirarProdutos(
   }
 }
 
-// GET /produto/{id} - Buscar produto por ID com unidade calculada
 export async function getProductById(id: number): Promise<ProductWithUnit> {
   const data = await request<Product>(`/${id}`);
   return calculateProductUnit(data);
 }
 
-// POST /produto/cadastrar - Criar novo produto
 export async function createProduct(product: Omit<Product, 'id'>): Promise<ProductWithUnit> {
   const data = await request<Product>("/cadastrar", {
     method: 'POST',
@@ -209,7 +210,6 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
   return calculateProductUnit(data);
 }
 
-// PUT /produto/{id} - Atualizar produto
 export async function updateProduct(id: number, product: Partial<Product>): Promise<ProductWithUnit> {
   const data = await request<Product>(`/${id}`, {
     method: 'PUT',
@@ -218,7 +218,6 @@ export async function updateProduct(id: number, product: Partial<Product>): Prom
   return calculateProductUnit(data);
 }
 
-// DELETE /produto/{id} - Deletar produto
 export async function deleteProduct(id: number): Promise<void> {
   await request<void>(`/${id}`, {
     method: 'DELETE',

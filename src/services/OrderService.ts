@@ -53,7 +53,6 @@ export const orderService = {
     return data;
   },
 
-  // POST /pedidos/cadastrar - Criar novo pedido
   async create(data: any): Promise<{ order: Order }> {
     const token = authService.getToken();
     

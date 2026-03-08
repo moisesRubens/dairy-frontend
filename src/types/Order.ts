@@ -1,4 +1,3 @@
-// types/Order.ts
 export type Order = {
   id: number;
   customer_name: string;
