@@ -136,9 +136,9 @@ export function OrdersPage() {
   // Adapta o status boolean para exibição
   const getStatusBadge = (status: boolean) => {
     if (status) {
-      return <span className="status-badge status-pending">Pendente</span>;
+      return <span className="status-badge status-pending">Pago</span>;
     } else {
-      return <span className="status-badge status-cancelled">Cancelado</span>;
+      return <span className="status-badge status-cancelled">Pendente</span>;
     }
   };
 
@@ -175,12 +175,7 @@ export function OrdersPage() {
             <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>Pedidos</h2>
             <p style={{ color: 'var(--text-secondary)' }}>Total: {orders.length} pedidos encontrados</p>
           </div>
-          <button
-            onClick={() => navigate('/orders/new')}
-            className="btn-primary"
-          >
-            + Novo Pedido
-          </button>
+          
         </div>
 
         <div className="filters-section">
@@ -241,7 +236,6 @@ export function OrdersPage() {
             <thead>
               <tr>
                 <th>Nº Pedido</th>
-                <th>Cliente</th>
                 <th>Data</th>
                 <th>Valor Total</th>
                 <th>Status</th>
@@ -259,7 +253,6 @@ export function OrdersPage() {
                 currentOrders.map((order) => (
                   <tr key={order.id}>
                     <td className="order-id">#{order.id}</td>
-                    <td>{order.customer_name || '—'}</td>
                     <td>{formatDateTime(order.order_date)}</td>
                     <td className="order-value">{formatCurrency(order.total_value)}</td>
                     <td>{getStatusBadge(order.status)}</td>
@@ -270,21 +263,22 @@ export function OrdersPage() {
                           className="btn-icon btn-view"
                           title="Visualizar"
                         >
-                          👁️
+                          <h5>detalhes</h5>
                         </button>
                         <button
                           onClick={() => handleEditOrder(order.id)}
                           className="btn-icon btn-edit"
                           title="Editar"
                         >
-                          ✏️
+                          <h5>editar</h5>
                         </button>
                         <button
                           onClick={() => handleDeleteOrder(order.id)}
                           className="btn-icon btn-delete"
                           title="Excluir"
                         >
-                          🗑️
+                          <h5>excluir</h5>
+                          
                         </button>
                       </div>
                     </td>

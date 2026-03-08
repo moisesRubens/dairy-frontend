@@ -1,14 +1,17 @@
+// ProductsPage.tsx - Corrigido com a função de reserva usando o endpoint /retirar
 import { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import type { ProductWithUnit } from "../types/Product";
 import { authService } from '../services/AuthService';
+import { retirarProdutos } from '../services/productService'; // Importando a função
 import React from "react";
 import { 
   Package, 
   ShoppingBag, 
   TrendingUp,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  CalendarClock
 } from 'lucide-react';
 import '../styles/Product.css';
 
@@ -16,6 +19,13 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<ProductWithUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(authService.getUser());
+  const [showReserveModal, setShowReserveModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithUnit | null>(null);
+  const [reserveQuantity, setReserveQuantity] = useState('');
+  const [reserveObservation, setReserveObservation] = useState(''); // Campo de observação
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -93,6 +103,113 @@ export default function ProductsPage() {
     navigate(-1);
   };
 
+  const handleReserveClick = (product: ProductWithUnit) => {
+    setSelectedProduct(product);
+    setReserveQuantity('');
+    setReserveObservation('');
+    setError('');
+    setSuccess('');
+    setShowReserveModal(true);
+  };
+
+  const handleReserveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedProduct || !reserveQuantity) {
+      setError('Preencha a quantidade');
+      return;
+    }
+
+    const quantity = parseFloat(reserveQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      setError('Quantidade inválida');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Determina a unidade correta baseada no produto
+      let unidade = 'amount';
+      if (selectedProduct.kg && selectedProduct.kg > 0) {
+        unidade = 'kg';
+      } else if (selectedProduct.liters && selectedProduct.liters > 0) {
+        unidade = 'liters';
+      }
+
+      // Prepara o payload para o endpoint /retirar
+      const produtos = [{
+        product_id: selectedProduct.id,
+        quantidade: quantity,
+        unidade: unidade
+      }];
+
+      const observacao = reserveObservation.trim() || `Reserva de ${selectedProduct.name}`;
+
+      console.log('📤 Enviando requisição para /retirar:', {
+        produtos,
+        observacao
+      });
+
+      // Chama o serviço de retirar produtos
+      const response = await retirarProdutos(produtos, observacao);
+      
+      console.log('✅ Resposta do servidor:', response);
+
+      // Verifica se houve erros
+      if (response.detalhes?.total_erros > 0) {
+        const erroMsg = response.detalhes.erros[0]?.erro || 'Erro ao reservar produto';
+        setError(erroMsg);
+      } else {
+        setSuccess(`✅ Produto reservado com sucesso!`);
+        
+        // Atualiza a lista de produtos para refletir o novo estoque
+        setTimeout(() => {
+          carregarProdutos();
+        }, 1500);
+      }
+
+      // Fecha o modal após 2 segundos em caso de sucesso
+      if (response.detalhes?.total_erros === 0) {
+        setTimeout(() => {
+          setShowReserveModal(false);
+          setSelectedProduct(null);
+          setReserveQuantity('');
+          setReserveObservation('');
+        }, 2000);
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao reservar produto:', error);
+      setError(error.message || 'Erro ao reservar produto. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getUnitType = (product: ProductWithUnit): string => {
+    if (product.amount && product.amount > 0) return 'unidades';
+    if (product.kg && product.kg > 0) return 'kg';
+    if (product.liters && product.liters > 0) return 'litros';
+    return 'unidades';
+  };
+
+  const getUnitSymbol = (product: ProductWithUnit): string => {
+    if (product.amount && product.amount > 0) return 'un';
+    if (product.kg && product.kg > 0) return 'kg';
+    if (product.liters && product.liters > 0) return 'L';
+    return 'un';
+  };
+
+  const getAvailableStock = (product: ProductWithUnit): number => {
+    if (product.amount && product.amount > 0) return product.amount;
+    if (product.kg && product.kg > 0) return product.kg;
+    if (product.liters && product.liters > 0) return product.liters;
+    return 0;
+  };
+
   if (loading) {
     return <div className="loading">Carregando produtos...</div>;
   }
@@ -138,28 +255,51 @@ export default function ProductsPage() {
       <main className="products-main">
         {products.length > 0 ? (
           <div className="products-grid">
-            {products.map((product) => (
-              <div key={product.id} className="product-card">
-                <div className="product-image">
-                  <div className="product-unit-badge">
-                    <span className="unit-icon">{product.unitIcon}</span>
-                    <span className="unit-value">{product.unitLabel}</span>
+            {products.map((product) => {
+              const availableStock = getAvailableStock(product);
+              const isOutOfStock = availableStock <= 0;
+              
+              return (
+                <div key={product.id} className={`product-card ${isOutOfStock ? 'out-of-stock' : ''}`}>
+                  <div className="product-image">
+                    <div className="product-unit-badge">
+                      <span className="unit-icon">{product.unitIcon}</span>
+                      <span className="unit-value">{product.unitLabel}</span>
+                    </div>
+                    {isOutOfStock && (
+                      <div className="out-of-stock-badge">ESGOTADO</div>
+                    )}
                   </div>
-                </div>
-                <div className="product-info">
-                  <h3 className="product-name">{product.name}</h3>
-                  
-                  <div className="product-price-section">
-                    <p className="product-price">
-                      R$ {product.price.toFixed(2).replace('.', ',')}
-                    </p>
-                    <button className="product-action" title="Adicionar ao carrinho">
-                      <ShoppingBag size={20} />
+                  <div className="product-info">
+                    <h3 className="product-name">{product.name}</h3>
+                    
+                    <div className="product-price-section">
+                      <p className="product-price">
+                        R$ {product.price.toFixed(2).replace('.', ',')}
+                      </p>
+                      <button 
+                        className="product-action" 
+                        title="Adicionar ao carrinho"
+                        disabled={isOutOfStock}
+                      >
+                        <ShoppingBag size={20} />
+                      </button>
+                    </div>
+
+                    {/* Botão Reservar */}
+                    <button 
+                      className="product-reserve-btn"
+                      onClick={() => handleReserveClick(product)}
+                      disabled={isOutOfStock || submitting}
+                      title={isOutOfStock ? "Produto esgotado" : "Reservar produto"}
+                    >
+                      <CalendarClock size={16} />
+                      <span>Reservar</span>
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="empty-state">
@@ -190,6 +330,87 @@ export default function ProductsPage() {
           </div>
         )}
       </main>
+
+      {/* Modal de Reserva */}
+      {showReserveModal && selectedProduct && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Reservar Produto</h2>
+            
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+
+            <div className="modal-product-info">
+              <span className="modal-product-name">{selectedProduct.name}</span>
+              <span className="modal-product-price">
+                R$ {selectedProduct.price.toFixed(2).replace('.', ',')}
+              </span>
+            </div>
+
+            <div className="stock-info">
+              <span className="stock-label">Disponível em estoque:</span>
+              <span className="stock-value">
+                {getAvailableStock(selectedProduct)} {getUnitSymbol(selectedProduct)}
+              </span>
+            </div>
+
+            <form onSubmit={handleReserveSubmit}>
+              <div className="form-group">
+                <label htmlFor="quantity" className="form-label">
+                  Quantidade ({getUnitType(selectedProduct)})
+                </label>
+                <input
+                  type="number"
+                  id="quantity"
+                  className="form-input"
+                  value={reserveQuantity}
+                  onChange={(e) => setReserveQuantity(e.target.value)}
+                  placeholder={`Ex: 5 ${getUnitType(selectedProduct)}`}
+                  min="0.01"
+                  max={getAvailableStock(selectedProduct)}
+                  step="0.01"
+                  required
+                  disabled={submitting}
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="observation" className="form-label">
+                  Observação (opcional)
+                </label>
+                <textarea
+                  id="observation"
+                  className="form-textarea"
+                  value={reserveObservation}
+                  onChange={(e) => setReserveObservation(e.target.value)}
+                  placeholder="Ex: Reserva para o cliente X"
+                  rows={3}
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  className="modal-btn modal-btn-secondary"
+                  onClick={() => setShowReserveModal(false)}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="modal-btn modal-btn-primary"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Processando...' : 'Confirmar Reserva'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

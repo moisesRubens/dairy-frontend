@@ -1,4 +1,4 @@
-// types/Product.ts
+// types/Product.ts - Versão completa
 export type Product = {
     id: number;
     name: string;
@@ -23,7 +23,7 @@ export type RetiradaResponse = {
   id: number;
   product_id: number;
   name: string;
-  price: number;
+  price?: number; // Opcional porque pode vir da API sem preço
   quantidade_retirada: number;
   unidade_retirada: string;
   data_retirada: string;
@@ -51,3 +51,14 @@ export type RetirarProdutosResponse = {
     total_erros: number;
   };
 };
+
+export type SubtrairEstoquePayload = {
+  produtos: Array<{
+    product_id: number;
+    quantidade: number; // Positivo para subtrair, negativo para adicionar
+    unidade: string;
+  }>;
+  observacao?: string;
+};
+
+export type SubtrairEstoqueResponse = RetirarProdutosResponse; // Mesma estrutura do retirar

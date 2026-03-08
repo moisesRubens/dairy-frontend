@@ -1,13 +1,13 @@
-// Home.tsx - Corrigido
+// Home.tsx - Completo e corrigido
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
 import { orderService } from '../services/OrderService';
-import { getProducts, getRetiradasPorPontoVenda } from '../services/productService';
+import { getProducts, getRetiradasPorPontoVenda, subtrairEstoque } from '../services/productService';
 import { Trash2, ShoppingCart, RotateCcw } from 'lucide-react';
 import type { SalePoint } from '../types/SalePoint';
 import type { Order } from '../types/Order';
-import type { ProductWithUnit } from '../types/Product';
+import type { ProductWithUnit, RetiradaResponse } from '../types/Product';
 import '../styles/Home.css';
 
 type OrderItem = {
@@ -20,16 +20,9 @@ type OrderItem = {
   unitLabel: string;
 };
 
-// Tipo para as retiradas (agora com product_id)
-type Retirada = {
-  id: number;
-  product_id: number;  // ← IMPORTANTE: precisa ter product_id
-  name: string;
+// Estendendo o tipo RetiradaResponse para garantir que price está presente
+type Retirada = RetiradaResponse & {
   price: number;
-  quantidade_retirada: number;
-  unidade_retirada: string;
-  data_retirada: string;
-  observacao: string | null;
 };
 
 function Home() {
@@ -86,9 +79,18 @@ function Home() {
       console.log('📦 Pedidos carregados:', ordersResponse.orders?.length);
       console.log('📦 Retiradas carregadas:', retiradasData);
       
+      // Enriquecer retiradas com o preço dos produtos
+      const retiradasComPreco: Retirada[] = retiradasData.map(retirada => {
+        const product = productsData.find(p => p.id === retirada.product_id);
+        return {
+          ...retirada,
+          price: product?.price || 0
+        };
+      });
+      
       setTodayOrders(ordersResponse.orders || []);
       setProducts(productsData || []);
-      setRetiradas(retiradasData || []);
+      setRetiradas(retiradasComPreco);
       
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
@@ -170,6 +172,8 @@ function Home() {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
+  // Home.tsx - Função handleSubmitOrder corrigida
+  // Home.tsx - Função handleSubmitOrder corrigida com validações
   const handleSubmitOrder = async () => {
     if (orderItems.length === 0) {
       setError('Adicione pelo menos um item ao pedido');
@@ -185,28 +189,55 @@ function Home() {
         throw new Error('Usuário não identificado');
       }
 
+      // Validar se todos os produtos têm estoque suficiente nas retiradas
+      for (const item of orderItems) {
+        const retirada = retiradas.find(r => r.product_id === item.product_id);
+        
+        if (!retirada) {
+          throw new Error(`Produto ${item.product_name} não está disponível para retirada`);
+        }
+        
+        if (retirada.quantidade_retirada < item.quantity) {
+          throw new Error(
+            `Estoque insuficiente para ${item.product_name}. ` +
+            `Disponível: ${retirada.quantidade_retirada} ${getUnitSymbol(retirada.unidade_retirada)}`
+          );
+        }
+      }
+
+      // Mapeia os itens para o formato ItemOrderRequestDTO da API
       const items = orderItems.map(item => {
-        const itemData: any = {
-          product_id: item.product_id,
+        const baseItem = {
+          product_id: Number(item.product_id)
         };
 
+        // Determina qual campo preencher baseado no tipo de unidade
         if (item.unit_type === 'amount') {
-          itemData.amount = item.quantity;
-          itemData.kg = 0;
-          itemData.liters = 0;
+          return {
+            ...baseItem,
+            amount: Number(item.quantity),
+            kg: null,
+            liters: null
+          };
         } else if (item.unit_type === 'kg') {
-          itemData.amount = 0;
-          itemData.kg = item.quantity;
-          itemData.liters = 0;
+          return {
+            ...baseItem,
+            amount: null,
+            kg: Number(item.quantity),
+            liters: null
+          };
         } else if (item.unit_type === 'liters') {
-          itemData.amount = 0;
-          itemData.kg = 0;
-          itemData.liters = item.quantity;
+          return {
+            ...baseItem,
+            amount: null,
+            kg: null,
+            liters: Number(item.quantity)
+          };
         }
+        return null;
+      }).filter(item => item !== null);
 
-        return itemData;
-      });
-
+      // Monta o payload exatamente como a API espera (OrderRequestDTO)
       const orderData = {
         description: `Pedido com ${orderItems.length} item(ns)`,
         items: items
@@ -227,7 +258,15 @@ function Home() {
       
     } catch (error: any) {
       console.error('❌ Erro ao criar pedido:', error);
-      setError(error.message || 'Erro ao criar pedido. Tente novamente.');
+      
+      // Mensagens de erro mais amigáveis
+      if (error.message.includes('409')) {
+        setError('Estoque insuficiente para um ou mais produtos');
+      } else if (error.message.includes('invalid inputs')) {
+        setError('Produto não disponível para retirada ou quantidade inválida');
+      } else {
+        setError(error.message || 'Erro ao criar pedido. Tente novamente.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -238,32 +277,59 @@ function Home() {
       setError('Não há retiradas para retornar ao estoque');
       return;
     }
-
     const confirmReturn = window.confirm(
-      `Tem certeza que deseja retornar TODOS os ${retiradas.length} produtos ao estoque?`
+      `Confirma o retorno de ${retiradas.length} produto(s) ao estoque?`
     );
-    
     if (!confirmReturn) return;
-
     setSubmitting(true);
     setError('');
     setSuccess('');
 
     try {
-      console.log('🔄 Retornando produtos ao estoque:', retiradas);
+      console.log('🔄 Retornando produtos ao estoque via /subtrair-estoque:', retiradas);
+
+      // Prepara o payload para o endpoint /subtrair-estoque
+      // A API espera um ARRAY DIRETAMENTE (List[ItemRetiradaDTO])
+      // Usamos valores NEGATIVOS para ADICIONAR ao estoque
+      const itemsParaRetornar = retiradas.map(retirada => ({
+        product_id: retirada.product_id,
+        quantidade: -Math.abs(retirada.quantidade_retirada), // Valor negativo para adicionar ao estoque
+        unidade: retirada.unidade_retirada
+      }));
+
+      console.log('📤 Enviando requisição para /subtrair-estoque (array direto):', itemsParaRetornar);
+
+      // Usa o serviço subtrairEstoque que agora envia o array diretamente
+      const response = await subtrairEstoque(itemsParaRetornar);
       
-      // Aqui você implementaria a chamada à API
-      // await productService.returnToStock(retiradas);
+      console.log('✅ Resposta do servidor:', response);
+
+      // Verifica se houve erros no processamento
+      if (response.detalhes?.total_erros > 0) {
+        console.warn('⚠️ Alguns produtos tiveram erro:', response.detalhes.erros);
+        
+        // Monta mensagem de erro detalhada
+        const errosMsg = response.detalhes.erros
+          .map(e => `• ${e.nome || `Produto ${e.product_id}`}: ${e.erro}`)
+          .join('\n');
+        
+        setError(`Falha ao retornar ${response.detalhes.total_erros} produto(s):\n${errosMsg}`);
+        
+        if (response.detalhes.total_sucessos > 0) {
+          setSuccess(`${response.detalhes.total_sucessos} produtos retornados com sucesso.`);
+        }
+      } else {
+        setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
+      }
       
-      setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
-      
+      // Recarrega os dados para atualizar a lista de retiradas (que deve ficar vazia)
       setTimeout(() => {
         loadInitialData();
-      }, 2000);
+      }, 1500);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro ao retornar produtos:', error);
-      setError('Erro ao retornar produtos ao estoque. Tente novamente.');
+      setError(error.message || 'Erro ao retornar produtos ao estoque. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
@@ -319,20 +385,20 @@ function Home() {
               {menuOpen && (
                 <div className="menu-dropdown">
                   <button onClick={() => handleNavigation('/products')}>
-                    📦 Produtos
+                    Produtos
                   </button>
                   <button onClick={() => handleNavigation('/orders')}>
-                    📋 Pedidos
+                    Pedidos
                   </button>
                   <button onClick={() => handleNavigation('/reports')}>
-                    📊 Relatórios
+                    Relatórios
                   </button>
                   <button onClick={() => handleNavigation('/sale-points')}>
-                    🏪 Pontos de Venda
+                    Pontos de Venda
                   </button>
                   <div className="menu-divider"></div>
                   <button onClick={handleLogout} className="logout-menu-item">
-                    🚪 Sair
+                    Sair
                   </button>
                 </div>
               )}
@@ -369,7 +435,7 @@ function Home() {
 
         {/* Card de Cadastro Rápido */}
         <div className="quick-order-card">
-          <h3>Cadastro de pedidos</h3>
+          <h4>Cadastro de pedidos</h4>
 
           {/* Tabela de Retiradas */}
           <div className="table-responsive">
@@ -386,7 +452,7 @@ function Home() {
                 title="Retornar todos os produtos ao estoque"
               >
                 <RotateCcw size={16} />
-                Retornar produtos ao estoque
+                {submitting ? 'Processando...' : 'Retornar produtos ao estoque'}
               </button>
             </div>
             
@@ -397,13 +463,12 @@ function Home() {
                   <th>Em estoque</th>
                   <th>Preço</th>
                   <th>Quantidade</th>
-                  <th>Ação</th>
+                  <th>Adicionar ao pedido</th>
                 </tr>
               </thead>
               <tbody>
                 {retiradas.length > 0 ? (
                   retiradas.map((retirada) => {
-                    // Busca o produto usando product_id, não id
                     const product = products.find(p => p.id === retirada.product_id);
                     if (!product) return null;
                     
@@ -419,7 +484,7 @@ function Home() {
                             type="number"
                             min="0.01"
                             step="0.01"
-                            placeholder={`Qtd em ${getUnitSymbol(retirada.unidade_retirada)}`}
+                            placeholder={`${getUnitSymbol(retirada.unidade_retirada)}`}
                             className="quantity-input"
                             value={quantities[retirada.product_id] || ''}
                             onChange={(e) => handleQuantityChange(retirada.product_id, e.target.value)}
@@ -429,7 +494,7 @@ function Home() {
                           <button 
                             onClick={() => handleAddToOrder(product)}
                             className="btn-add-small"
-                            disabled={!quantities[retirada.product_id]}
+                            disabled={!quantities[retirada.product_id] || submitting}
                           >
                             Adicionar
                           </button>

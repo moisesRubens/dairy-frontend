@@ -4,7 +4,9 @@ import type {
   Product, 
   RetiradaResponse, 
   ProductWithUnit,
-  RetirarProdutosResponse 
+  RetirarProdutosResponse,
+  SubtrairEstoqueResponse,
+  ItemRetiradaDTO
 } from "../types/Product";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -139,7 +141,6 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
     const data = await response.json();
     console.log('📦 Dados recebidos da API:', data);
     
-    // 🔥 MAPEAMENTO CORRETO baseado na estrutura da API
     // A API retorna um array direto de retiradas
     if (Array.isArray(data)) {
       return data.map((item: any) => ({
@@ -193,6 +194,31 @@ export async function retirarProdutos(
     return data;
   } catch (error) {
     console.error('❌ Erro ao retirar produtos:', error);
+    throw error;
+  }
+}
+
+/**
+ * Subtrai (ou adiciona) quantidade do estoque de produtos
+ * @param items Array de itens com product_id, quantidade (positivo para subtrair, negativo para adicionar) e unidade
+ * @returns Resposta da API
+ */
+export async function subtrairEstoque(
+  items: ItemRetiradaDTO[]
+): Promise<SubtrairEstoqueResponse> {
+  try {
+    console.log('📤 Chamando /subtrair-estoque com items:', items);
+    
+    // A API espera um ARRAY DIRETAMENTE (List[ItemRetiradaDTO])
+    const data = await request<SubtrairEstoqueResponse>("/subtrair-estoque", {
+      method: 'POST',
+      body: JSON.stringify(items),
+    });
+    
+    console.log('✅ Resposta de /subtrair-estoque:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Erro ao subtrair estoque:', error);
     throw error;
   }
 }
