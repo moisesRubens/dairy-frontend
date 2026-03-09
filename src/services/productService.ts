@@ -114,9 +114,11 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   }
 }
 
-export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
+// productService.ts - Versão CORRIGIDA
+
+export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<RetiradaResponse[]> {
   try {
-    console.log('🔍 Buscando retiradas do ponto de venda logado');
+    console.log(`\n=== getRetiradasPorPontoVenda(${salePointId || 'usuário logado'}) ===`);
     
     const token = authService.getToken();
     
@@ -125,7 +127,16 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
       return [];
     }
     
-    const url = `${API_URL}/produto/retiradas`;
+    // Monta a URL - se salePointId for undefined, não passa o parâmetro
+    let url = `${API_URL}/produto/retiradas`;
+    if (salePointId) {
+      url += `?sale_point_id=${salePointId}`;
+      console.log(`📤 Buscando retiradas do ponto específico: ${salePointId}`);
+    } else {
+      console.log(`📤 Buscando retiradas do ponto logado (do token)`);
+    }
+    
+    console.log('📤 URL:', url);
     
     const response = await fetch(url, {
       headers: { 
@@ -135,30 +146,19 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
     });
     
     if (!response.ok) {
+      console.error(`❌ Erro ${response.status} ao buscar retiradas`);
       return [];
     }
     
     const data = await response.json();
-    console.log('📦 Dados recebidos da API:', data);
+    console.log('📦 Dados brutos da API:', data);
     
-    // A API retorna um array direto de retiradas
-    if (Array.isArray(data)) {
-      return data.map((item: any) => ({
-        id: item.id,
-        product_id: item.product_id,
-        name: item.nome || item.name || '',
-        price: 0, // Será preenchido com o preço do produto
-        quantidade_retirada: item.quantidade || 0,
-        unidade_retirada: item.unidade || 'amount',
-        data_retirada: item.data_retirada || item.data || new Date().toISOString(),
-        observacao: item.observacao || null,
-        sale_point_id: item.sale_point_id || 0
-      }));
-    }
-    
-    // Se a API retorna { retiradas: [...] }
-    if (data.retiradas && Array.isArray(data.retiradas)) {
-      return data.retiradas.map((item: any) => ({
+    // A API retorna { retiradas: [...] }
+    if (data && data.retiradas && Array.isArray(data.retiradas)) {
+      const retiradas = data.retiradas;
+      console.log(`📦 Encontradas ${retiradas.length} retiradas`);
+      
+      return retiradas.map((item: any) => ({
         id: item.id,
         product_id: item.product_id,
         name: item.nome || item.name || '',
@@ -167,10 +167,11 @@ export async function getRetiradasPorPontoVenda(): Promise<RetiradaResponse[]> {
         unidade_retirada: item.unidade || 'amount',
         data_retirada: item.data_retirada || item.data || new Date().toISOString(),
         observacao: item.observacao || null,
-        sale_point_id: item.sale_point_id || 0
+        sale_point_id: item.sale_point_id || salePointId || 0
       }));
     }
     
+    console.log('⚠️ Formato de resposta inesperado:', data);
     return [];
     
   } catch (error) {

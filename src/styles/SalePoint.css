@@ -1,0 +1,401 @@
+/* styles/SalePoint.css */
+.sale-points-container {
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.sale-points-header {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-name {
+  font-weight: 500;
+}
+
+.sale-points-main {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.page-title {
+  margin-bottom: 2rem;
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.sale-points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sale-point-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sale-point-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sale-point-header:hover {
+  background: #e9ecef;
+}
+
+.sale-point-info h3 {
+  margin: 0 0 0.25rem 0;
+  color: #2c3e50;
+}
+
+.sale-point-email {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.sale-point-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-badge {
+  display: flex;
+  gap: 1rem;
+  background: #e3f2fd;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+
+.stat-badge span:first-child {
+  color: #1976d2;
+}
+
+.stat-badge span:last-child {
+  color: #2e7d32;
+}
+
+.sale-point-content {
+  padding: 1.5rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.info-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.info-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.info-label {
+  display: block;
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.info-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.products-section {
+  margin-bottom: 2rem;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.products-table th {
+  background: #f8f9fa;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #555;
+}
+
+.products-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.product-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.quantity-value {
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.quantity-input {
+  width: 100px;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.btn-add-small {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-add-small:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.btn-add-small:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-view-orders,
+.btn-return-stock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #2196F3;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-view-orders:hover,
+.btn-return-stock:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.btn-return-stock:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.order-summary {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-top: 2rem;
+}
+
+.order-summary h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  color: #333;
+}
+
+.summary-items {
+  margin-bottom: 1rem;
+}
+
+.summary-item {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.summary-item:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.item-details {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.item-total {
+  font-weight: 600;
+  color: #2e7d32;
+  text-align: right;
+}
+
+.btn-remove-item {
+  background: none;
+  border: none;
+  color: #f44336;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.btn-remove-item:hover {
+  color: #d32f2f;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0.75rem;
+  border-top: 2px solid #e0e0e0;
+  font-size: 1.1rem;
+}
+
+.summary-total strong {
+  color: #2e7d32;
+  font-size: 1.2rem;
+}
+
+.btn-save-order {
+  width: 100%;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.btn-save-order:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.btn-save-order:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.error-message,
+.success-message,
+.global-error {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.error-message,
+.global-error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.success-message {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .sale-point-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .sale-point-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .stat-badge {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .summary-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .item-total {
+    text-align: left;
+  }
+
+  .products-table {
+    font-size: 0.8rem;
+  }
+
+  .quantity-input {
+    width: 80px;
+  }
+}

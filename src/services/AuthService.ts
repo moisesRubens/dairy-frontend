@@ -118,5 +118,28 @@ export const authService = {
     }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+  },
+
+  async getAllSalePoints() {
+    const token = authService.getToken();
+    
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+
+    const response = await fetch(`${API_URL}/auth/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao buscar pontos de venda');
+    }
+
+    return response.json();
   }
 };

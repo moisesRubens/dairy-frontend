@@ -393,7 +393,7 @@ function Home() {
                   <button onClick={() => handleNavigation('/reports')}>
                     Relatórios
                   </button>
-                  <button onClick={() => handleNavigation('/sale-points')}>
+                  <button onClick={() => handleNavigation('/pontos-de-venda')}>
                     Pontos de Venda
                   </button>
                   <div className="menu-divider"></div>

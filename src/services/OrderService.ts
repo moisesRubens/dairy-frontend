@@ -21,11 +21,9 @@ export const orderService = {
       if (!token) {
         throw new Error('Token não encontrado');
       }
-
-      let url = `${API_URL}/pedidos/`; // URL com barra no final como no backend
-      
-      // Adiciona filtros à URL se existirem
-      if (filters) {
+      let url = `${API_URL}/pedidos/`;
+    
+      if(filters) {
         const params = new URLSearchParams();
         if (filters.date) params.append('date', filters.date);
         if (filters.description) params.append('description', filters.description);
@@ -71,7 +69,7 @@ export const orderService = {
    * @param id ID do pedido
    * @returns Pedido encontrado
    */
-  async getById(id: number): Promise<{ order: Order }> {
+  async getOrdersBySalePoint(salePointId: number, date?: string): Promise<Order[]> {
     try {
       const token = authService.getToken();
       
@@ -79,7 +77,16 @@ export const orderService = {
         throw new Error('Token não encontrado');
       }
       
-      const response = await fetch(`${API_URL}/pedidos/${id}`, {
+      // Monta a URL com query parameters
+      let url = `${API_URL}/auth/pedidos?sale_point_id=${salePointId}`;
+      if (date) {
+        url += `&date=${date}`;
+      }
+      
+      console.log(`🔍 Buscando pedidos do ponto ${salePointId}${date ? ` na data ${date}` : ''}`);
+      console.log('📤 URL:', url);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -89,23 +96,52 @@ export const orderService = {
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Erro ao buscar pedido: ${response.status} - ${errorText}`);
+        throw new Error(`Erro ao buscar pedidos: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
-      return data;
+      console.log(`✅ Encontrados ${data.length} pedidos`, data);
+      
+      return data; // A API retorna um array diretamente
       
     } catch (error) {
-      console.error('❌ Erro em orderService.getById:', error);
+      console.error('❌ Erro em orderService.getOrdersBySalePoint:', error);
       throw error;
     }
   },
 
   /**
-   * Cria um novo pedido
-   * @param data Dados do pedido no formato OrderRequestDTO
-   * @returns Pedido criado
+   * Deleta um pedido específico
+   * @param id ID do pedido a ser deletado
    */
+  async delete(id: number): Promise<void> {
+    try {
+      const token = authService.getToken();
+      
+      if (!token) {
+        throw new Error('Token não encontrado');
+      }
+      
+      const response = await fetch(`${API_URL}/pedidos/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao deletar pedido: ${response.status} - ${errorText}`);
+      }
+      
+      console.log(`✅ Pedido ${id} deletado com sucesso`);
+      
+    } catch (error) {
+      console.error('❌ Erro em orderService.delete:', error);
+      throw error;
+    }
+  },
   async create(data: {
     description?: string;
     items: Array<{
@@ -149,39 +185,6 @@ export const orderService = {
       
     } catch (error) {
       console.error('❌ Erro em orderService.create:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Deleta um pedido específico
-   * @param id ID do pedido a ser deletado
-   */
-  async delete(id: number): Promise<void> {
-    try {
-      const token = authService.getToken();
-      
-      if (!token) {
-        throw new Error('Token não encontrado');
-      }
-      
-      const response = await fetch(`${API_URL}/pedidos/${id}`, {
-        method: 'DELETE',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
-        },
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ao deletar pedido: ${response.status} - ${errorText}`);
-      }
-      
-      console.log(`✅ Pedido ${id} deletado com sucesso`);
-      
-    } catch (error) {
-      console.error('❌ Erro em orderService.delete:', error);
       throw error;
     }
   }
