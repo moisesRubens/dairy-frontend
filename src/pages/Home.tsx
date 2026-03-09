@@ -1,10 +1,10 @@
-// Home.tsx - Completo e corrigido
+// Home.tsx - Completo e corrigido com classes Paramount+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
 import { orderService } from '../services/OrderService';
 import { getProducts, getRetiradasPorPontoVenda, subtrairEstoque } from '../services/productService';
-import { Trash2, ShoppingCart, RotateCcw } from 'lucide-react';
+import { Trash2, ShoppingCart, RotateCcw, LogOut, Package, FileText, BarChart3, Users } from 'lucide-react';
 import type { SalePoint } from '../types/SalePoint';
 import type { Order } from '../types/Order';
 import type { ProductWithUnit, RetiradaResponse } from '../types/Product';
@@ -20,7 +20,6 @@ type OrderItem = {
   unitLabel: string;
 };
 
-// Estendendo o tipo RetiradaResponse para garantir que price está presente
 type Retirada = RetiradaResponse & {
   price: number;
 };
@@ -79,7 +78,6 @@ function Home() {
       console.log('📦 Pedidos carregados:', ordersResponse.orders?.length);
       console.log('📦 Retiradas carregadas:', retiradasData);
       
-      // Enriquecer retiradas com o preço dos produtos
       const retiradasComPreco: Retirada[] = retiradasData.map(retirada => {
         const product = productsData.find(p => p.id === retirada.product_id);
         return {
@@ -106,10 +104,7 @@ function Home() {
 
   const handleViewTodayOrders = () => {
     const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoje.getDate()).padStart(2, '0');
-    const hojeStr = `${ano}-${mes}-${dia}`;
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
     
     navigate('/orders', { 
       state: { 
@@ -172,8 +167,6 @@ function Home() {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  // Home.tsx - Função handleSubmitOrder corrigida
-  // Home.tsx - Função handleSubmitOrder corrigida com validações
   const handleSubmitOrder = async () => {
     if (orderItems.length === 0) {
       setError('Adicione pelo menos um item ao pedido');
@@ -189,7 +182,6 @@ function Home() {
         throw new Error('Usuário não identificado');
       }
 
-      // Validar se todos os produtos têm estoque suficiente nas retiradas
       for (const item of orderItems) {
         const retirada = retiradas.find(r => r.product_id === item.product_id);
         
@@ -205,13 +197,11 @@ function Home() {
         }
       }
 
-      // Mapeia os itens para o formato ItemOrderRequestDTO da API
       const items = orderItems.map(item => {
         const baseItem = {
           product_id: Number(item.product_id)
         };
 
-        // Determina qual campo preencher baseado no tipo de unidade
         if (item.unit_type === 'amount') {
           return {
             ...baseItem,
@@ -226,7 +216,7 @@ function Home() {
             kg: Number(item.quantity),
             liters: null
           };
-        } else if (item.unit_type === 'liters') {
+        } else {
           return {
             ...baseItem,
             amount: null,
@@ -234,10 +224,8 @@ function Home() {
             liters: Number(item.quantity)
           };
         }
-        return null;
       }).filter(item => item !== null);
 
-      // Monta o payload exatamente como a API espera (OrderRequestDTO)
       const orderData = {
         description: `Pedido com ${orderItems.length} item(ns)`,
         items: items
@@ -259,7 +247,6 @@ function Home() {
     } catch (error: any) {
       console.error('❌ Erro ao criar pedido:', error);
       
-      // Mensagens de erro mais amigáveis
       if (error.message.includes('409')) {
         setError('Estoque insuficiente para um ou mais produtos');
       } else if (error.message.includes('invalid inputs')) {
@@ -286,29 +273,17 @@ function Home() {
     setSuccess('');
 
     try {
-      console.log('🔄 Retornando produtos ao estoque via /subtrair-estoque:', retiradas);
-
-      // Prepara o payload para o endpoint /subtrair-estoque
-      // A API espera um ARRAY DIRETAMENTE (List[ItemRetiradaDTO])
-      // Usamos valores NEGATIVOS para ADICIONAR ao estoque
       const itemsParaRetornar = retiradas.map(retirada => ({
         product_id: retirada.product_id,
-        quantidade: Math.abs(retirada.quantidade_retirada), // Valor negativo para adicionar ao estoque
+        quantidade: Math.abs(retirada.quantidade_retirada),
         unidade: retirada.unidade_retirada
       }));
 
-      console.log('📤 Enviando requisição para /subtrair-estoque (array direto):', itemsParaRetornar);
+      console.log('📤 Enviando requisição para /subtrair-estoque:', itemsParaRetornar);
 
-      // Usa o serviço subtrairEstoque que agora envia o array diretamente
       const response = await subtrairEstoque(itemsParaRetornar);
       
-      console.log('✅ Resposta do servidor:', response);
-
-      // Verifica se houve erros no processamento
       if (response.detalhes?.total_erros > 0) {
-        console.warn('⚠️ Alguns produtos tiveram erro:', response.detalhes.erros);
-        
-        // Monta mensagem de erro detalhada
         const errosMsg = response.detalhes.erros
           .map(e => `• ${e.nome || `Produto ${e.product_id}`}: ${e.erro}`)
           .join('\n');
@@ -322,7 +297,6 @@ function Home() {
         setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
       }
       
-      // Recarrega os dados para atualizar a lista de retiradas (que deve ficar vazia)
       setTimeout(() => {
         loadInitialData();
       }, 1500);
@@ -361,7 +335,12 @@ function Home() {
   };
 
   if (!user || loading) {
-    return <div className="loading">Carregando...</div>;
+    return (
+      <div className="loading">
+        <div className="loading-spinner"></div>
+        Carregando...
+      </div>
+    );
   }
 
   return (
@@ -376,6 +355,7 @@ function Home() {
               <button 
                 className="hamburger-button"
                 onClick={() => setMenuOpen(!menuOpen)}
+                aria-label="Menu"
               >
                 <span className="hamburger-line"></span>
                 <span className="hamburger-line"></span>
@@ -385,19 +365,24 @@ function Home() {
               {menuOpen && (
                 <div className="menu-dropdown">
                   <button onClick={() => handleNavigation('/products')}>
+                    <Package size={16} />
                     Produtos
                   </button>
                   <button onClick={() => handleNavigation('/orders')}>
+                    <FileText size={16} />
                     Pedidos
                   </button>
                   <button onClick={() => handleNavigation('/reports')}>
+                    <BarChart3 size={16} />
                     Relatórios
                   </button>
                   <button onClick={() => handleNavigation('/pontos-de-venda')}>
+                    <Users size={16} />
                     Pontos de Venda
                   </button>
                   <div className="menu-divider"></div>
                   <button onClick={handleLogout} className="logout-menu-item">
+                    <LogOut size={16} />
                     Sair
                   </button>
                 </div>
@@ -414,14 +399,14 @@ function Home() {
         {/* Resumo do Dia */}
         <div className="info-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0 }}>Resumo do Dia</h3>
+            <h3>Resumo do Dia</h3>
             <button onClick={handleViewTodayOrders} className="btn-view-orders">
               Visualizar pedidos
             </button>
           </div>
           <div className="info-cards">
             <div className="info-card">
-              <span className="info-label">Pedidos</span>
+              <span className="info-label">Pedidos Hoje</span>
               <span className="info-value">{todayOrders.length}</span>
             </div>
             <div className="info-card">
@@ -443,8 +428,10 @@ function Home() {
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              marginBottom: '15px'
+              marginBottom: '20px',
+              padding: '0 16px'
             }}>
+              <h4 style={{ margin: 0, fontSize: '18px' }}>Produtos disponíveis</h4>
               <button 
                 onClick={handleReturnAllToStock}
                 className="btn-return-stock"
@@ -452,7 +439,7 @@ function Home() {
                 title="Retornar todos os produtos ao estoque"
               >
                 <RotateCcw size={16} />
-                {submitting ? 'Processando...' : 'Retornar produtos ao estoque'}
+                {submitting ? 'Processando...' : 'Retornar ao estoque'}
               </button>
             </div>
             
@@ -463,7 +450,7 @@ function Home() {
                   <th>Em estoque</th>
                   <th>Preço</th>
                   <th>Quantidade</th>
-                  <th>Adicionar ao pedido</th>
+                  <th>Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -475,8 +462,10 @@ function Home() {
                     return (
                       <tr key={retirada.id}>
                         <td className="product-name">{product.name}</td>
-                        <td className="quantity-value">
-                          {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
+                        <td>
+                          <span className="quantity-value">
+                            {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
+                          </span>
                         </td>
                         <td>R$ {formatCurrency(product.price)}</td>
                         <td>
@@ -485,7 +474,6 @@ function Home() {
                             min="0.01"
                             step="0.01"
                             placeholder={`${getUnitSymbol(retirada.unidade_retirada)}`}
-                            className="quantity-input"
                             value={quantities[retirada.product_id] || ''}
                             onChange={(e) => handleQuantityChange(retirada.product_id, e.target.value)}
                           />
@@ -517,8 +505,8 @@ function Home() {
           {orderItems.length > 0 && (
             <div className="order-summary">
               <h4>
-                <ShoppingCart size={18} />
-                Resumo do Pedido
+                <ShoppingCart size={20} />
+                Pedido em Andamento
               </h4>
               
               <div className="summary-items">
@@ -526,22 +514,24 @@ function Home() {
                   <div key={index} className="summary-item">
                     <span className="item-name">{item.product_name}</span>
                     <span className="item-details">
-                      {item.quantity} {item.unitLabel} x R$ {formatCurrency(item.unit_price)}
+                      {item.quantity} {item.unitLabel}
                     </span>
-                    <span className="item-total">R$ {formatCurrency(item.total_price)}</span>
+                    <span className="item-total">
+                      R$ {formatCurrency(item.total_price)}
+                    </span>
                     <button
                       onClick={() => handleRemoveItem(index)}
                       className="btn-remove-item"
                       title="Remover item"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 ))}
               </div>
 
               <div className="summary-total">
-                <span>Total do Pedido:</span>
+                <span>Total do Pedido</span>
                 <strong>R$ {formatCurrency(orderTotal)}</strong>
               </div>
 
@@ -550,7 +540,7 @@ function Home() {
                 className="btn-save-order" 
                 disabled={submitting}
               >
-                {submitting ? 'Salvando...' : 'Salvar Pedido'}
+                {submitting ? 'Processando...' : 'Finalizar Pedido'}
               </button>
             </div>
           )}
