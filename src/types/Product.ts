@@ -23,7 +23,7 @@ export type RetiradaResponse = {
   id: number;
   product_id: number;
   name: string;
-  price?: number; // Opcional porque pode vir da API sem preço
+  price?: number; 
   quantidade_retirada: number;
   unidade_retirada: string;
   data_retirada: string;

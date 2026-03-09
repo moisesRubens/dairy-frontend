@@ -163,7 +163,7 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
         product_id: item.product_id,
         name: item.nome || item.name || '',
         price: 0,
-        quantidade_retirada: item.quantidade || 0,
+        quantidade_retirada: (item.taken_quantity - item.sold_quantity) || 0,
         unidade_retirada: item.unidade || 'amount',
         data_retirada: item.data_retirada || item.data || new Date().toISOString(),
         observacao: item.observacao || null,
