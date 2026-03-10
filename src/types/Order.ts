@@ -17,18 +17,19 @@ export type OrderItem = {
   product_name?: string;
 }
 
+// CORRIGIDO: Agora corresponde exatamente à API
 export type OrderResponseDTO = {
   id: number;
   status: boolean;
   total_value: number;
   description?: string;
-  order_date: string;
-  items_order: ItemOrderResponseDTO[];
+  date: string;  // <-- MUDOU de order_date para date
+  items: ItemOrderResponseDTO[];  // <-- MUDOU de item_order para items
 }
 
 export type ItemOrderResponseDTO = {
   product_id: number;
-  item_price: number;
+  price: number;  // <-- MUDOU de item_price para price
   amount?: number;
   kg?: number;
   liters?: number;

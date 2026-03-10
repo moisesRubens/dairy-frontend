@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { Order } from '../types/Order';
+import type { OrderResponseDTO, ItemOrderResponseDTO } from '../types/Order';
 import { orderService } from '../services/OrderService';
 import { authService } from '../services/AuthService';
 import '../styles/Base.css';
@@ -13,6 +14,11 @@ export function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Estado para armazenar os detalhes do pedido selecionado
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderResponseDTO | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   
   // Estados para filtros - simplificado para usar os parâmetros da API
   const [filters, setFilters] = useState(() => {
@@ -86,8 +92,63 @@ export function OrdersPage() {
     navigate('/login');
   };
 
-  const handleViewOrder = (id: number) => {
-    orderService.getOrder(id)
+  const handleViewOrderDetails = async (orderId: number) => {
+    console.log('🔵 FUNÇÃO CHAMADA - orderId:', orderId);
+    
+    try {
+      if (expandedOrderId === orderId) {
+        console.log('🔽 Fechando detalhes do pedido', orderId);
+        setExpandedOrderId(null);
+        setSelectedOrderDetails(null);
+        return;
+      }
+      
+      setLoadingDetails(true);
+      setExpandedOrderId(orderId);
+      
+      const response = await orderService.getOrder(orderId);
+      console.log('✅ Resposta RAW:', response);
+      
+      // Pega os dados (se veio como {order} ou direto)
+      const apiData = response.order || response;
+      console.log('📦 apiData:', apiData);
+      
+      if (!apiData) {
+        throw new Error('Dados não encontrados');
+      }
+      
+      // DEBUG: Ver o que tem no apiData
+      console.log('🔍 Chaves do apiData:', Object.keys(apiData));
+      console.log('🔍 apiData.item_order:', apiData.item_order);
+      
+      // ADAPTADOR CORRIGIDO - usa item_order em vez de items
+      const adaptedOrder: OrderResponseDTO = {
+        id: apiData.id,
+        status: apiData.status,
+        total_value: apiData.total_value,
+        description: apiData.description || '',
+        order_date: apiData.date || apiData.order_date || new Date().toISOString(),
+        items: Array.isArray(apiData.item_order) ? apiData.item_order.map((item: any) => ({
+          product_id: item.product_id,
+          item_price: item.price || item.item_price || 0,
+          amount: item.amount,
+          kg: item.kg,
+          liters: item.liters
+        })) : []
+      };
+      
+      console.log('✅ Dados adaptados:', adaptedOrder);
+      console.log('✅ Itens adaptados:', adaptedOrder.items);
+      
+      setSelectedOrderDetails(adaptedOrder);
+      
+    } catch (error) {
+      console.error('❌ Erro:', error);
+      setError('Erro ao carregar detalhes do pedido. Tente novamente.');
+      setExpandedOrderId(null);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const handleEditOrder = (id: number) => {
@@ -98,6 +159,11 @@ export function OrdersPage() {
     if (window.confirm('Tem certeza que deseja excluir este pedido?')) {
       try {
         await orderService.delete(id);
+        // Se o pedido excluído estava expandido, limpa os detalhes
+        if (expandedOrderId === id) {
+          setExpandedOrderId(null);
+          setSelectedOrderDetails(null);
+        }
         loadOrders();
       } catch (error) {
         console.error('Erro ao excluir pedido:', error);
@@ -142,6 +208,43 @@ export function OrdersPage() {
     }
   };
 
+  // Componente para exibir os itens do pedido
+  // Componente para exibir os itens do pedido - CORRIGIDO
+  // Componente TEMPORÁRIO para teste - substitua o OrderDetails atual
+  const OrderDetails = ({ order, items }: { order: OrderResponseDTO, items: ItemOrderResponseDTO[] }) => {
+    console.log('🔥🔥🔥 OrderDetails FOI RENDERIZADO!');
+    console.log('📦 order recebido:', order);
+    console.log('📦 items recebidos:', items);
+    console.log('📦 items length:', items?.length);
+    
+    return (
+      <div style={{ 
+        backgroundColor: 'red', 
+        color: 'white', 
+        padding: '20px',
+        margin: '10px 0',
+        fontSize: '20px',
+        fontWeight: 'bold'
+      }}>
+        {items && items.length > 0 ? (
+          <div>
+            <h3 style={{ color: 'yellow' }}>ITENS ENCONTRADOS! {items.length} itens</h3>
+            <pre style={{ color: 'white', fontSize: '14px' }}>
+              {JSON.stringify(items, null, 2)}
+            </pre>
+          </div>
+        ) : (
+          <div>
+            <h3 style={{ color: 'yellow' }}>⚠️ NENHUM ITEM ENCONTRADO!</h3>
+            <p>order.id: {order?.id}</p>
+            <p>order.date: {order?.date}</p>
+            <p>order.total_value: {order?.total_value}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="loading">
@@ -175,7 +278,6 @@ export function OrdersPage() {
             <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>Pedidos</h2>
             <p style={{ color: 'var(--text-secondary)' }}>Total: {orders.length} pedidos encontrados</p>
           </div>
-          
         </div>
 
         <div className="filters-section">
@@ -210,8 +312,8 @@ export function OrdersPage() {
                 onChange={handleFilterChange}
               >
                 <option value="">Todos</option>
-                <option value="true">Pendente</option>
-                <option value="false">Cancelado</option>
+                <option value="true">Pago</option>
+                <option value="false">Pendente</option>
               </select>
             </div>
           </div>
@@ -245,44 +347,68 @@ export function OrdersPage() {
             <tbody>
               {currentOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty-table">
+                  <td colSpan={5} className="empty-table">
                     Nenhum pedido encontrado
                   </td>
                 </tr>
               ) : (
                 currentOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="order-id">#{order.id}</td>
-                    <td>{formatDateTime(order.order_date)}</td>
-                    <td className="order-value">{formatCurrency(order.total_value)}</td>
-                    <td>{getStatusBadge(order.status)}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          onClick={() => handleViewOrder(order.id)}
-                          className="btn-icon btn-view"
-                          title="Visualizar"
-                        >
-                          <h5>detalhes</h5>
-                        </button>
-                        <button
-                          onClick={() => handleEditOrder(order.id)}
-                          className="btn-icon btn-edit"
-                          title="Editar"
-                        >
-                          <h5>editar</h5>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="btn-icon btn-delete"
-                          title="Excluir"
-                        >
-                          <h5>excluir</h5>
-                          
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={order.id} className={expandedOrderId === order.id ? 'order-row-expanded' : ''}>
+                      <td className="order-id">#{order.id}</td>
+                      <td>{formatDateTime(order.order_date)}</td>
+                      <td className="order-value">{formatCurrency(order.total_value)}</td>
+                      <td>{getStatusBadge(order.status)}</td>
+                      <td>
+                        <div className="action-buttons">
+                          <button
+                            onClick={() => handleViewOrderDetails(order.id)}
+                            className={`btn-icon ${expandedOrderId === order.id ? 'btn-view-active' : 'btn-view'}`}
+                            title={expandedOrderId === order.id ? "Ocultar detalhes" : "Ver detalhes"}
+                          >
+                            {expandedOrderId === order.id ? '▼' : '▶'} Detalhes
+                          </button>
+                          <button
+                            onClick={() => handleEditOrder(order.id)}
+                            className="btn-icon btn-edit"
+                            title="Editar"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteOrder(order.id)}
+                            className="btn-icon btn-delete"
+                            title="Excluir"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedOrderId === order.id && (
+                      <tr className="order-details-row">
+                        <td colSpan={5} className="order-details-cell">
+                          {loadingDetails ? (
+                            <div className="loading-details">Carregando itens...</div>
+                          ) : selectedOrderDetails ? (
+                            <>
+                              <div style={{ backgroundColor: 'blue', color: 'white', padding: '5px' }}>
+                                DEBUG: selectedOrderDetails.id = {selectedOrderDetails.id}
+                              </div>
+                              <OrderDetails 
+                                order={selectedOrderDetails} 
+                                items={selectedOrderDetails.items} 
+                              />
+                            </>
+                          ) : (
+                            <div style={{ backgroundColor: 'orange', padding: '20px' }}>
+                              selectedOrderDetails é null
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))
               )}
             </tbody>

@@ -192,7 +192,6 @@ export const orderService = {
   async getOrder(orderId: number): Promise<{order: OrderResponseDTO}> {
     try {
       const token = authService.getToken();
-
       if (!token) {
         throw new Error("Invalid token")
       }
@@ -214,8 +213,12 @@ export const orderService = {
       }
       
       const result = await response.json();
+      
       console.log('✅ OrderService.create - Resposta:', result);
-      return result;
+      
+      // CORREÇÃO: A API retorna o objeto diretamente
+      // Precisamos retornar no formato { order: resultado }
+      return { order: result };
       
     } catch (error) {
       console.error('❌ Erro em orderService.create:', error);
