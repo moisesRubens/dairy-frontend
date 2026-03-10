@@ -69,7 +69,7 @@ export const orderService = {
    * @param id ID do pedido
    * @returns Pedido encontrado
    */
-  async getOrdersBySalePoint(salePointId: number, date?: string): Promise<Order[]> {
+  async getOrdersBySalePoint(salePointId?: number, date?: string): Promise<Order[]> {
     try {
       const token = authService.getToken();
       
@@ -187,5 +187,16 @@ export const orderService = {
       console.error('❌ Erro em orderService.create:', error);
       throw error;
     }
-  }
+  },
+/*
+  async getItemsOrder(salePointId?: number, orderId: number):
+    try {
+      if (!token) {
+        console.error('❌ Token não encontrado!');
+        return [];
+      }
+    } catch(error) {
+
+    }*/
+
 };
