@@ -1,5 +1,6 @@
 // orderService.ts - CORRIGIDO
 import type { Order } from '../types/Order';
+import type { OrderResponseDTO } from '../types/Order';
 import { authService } from './AuthService';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -188,15 +189,38 @@ export const orderService = {
       throw error;
     }
   },
-/*
-  async getItemsOrder(salePointId?: number, orderId: number):
+  async getOrder(orderId: number): Promise<{order: OrderResponseDTO}> {
     try {
-      if (!token) {
-        console.error('❌ Token não encontrado!');
-        return [];
-      }
-    } catch(error) {
+      const token = authService.getToken();
 
-    }*/
+      if (!token) {
+        throw new Error("Invalid token")
+      }
+
+      const response = await fetch(`${API_URL}/pedidos/${orderId}`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json' 
+        }
+      });
+      
+      console.log('📥 OrderService.show - Status da resposta:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ OrderService.create - Erro:', errorText);
+        throw new Error(`Erro ao criar pedido: ${response.status} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ OrderService.create - Resposta:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Erro em orderService.create:', error);
+      throw error;
+    }
+  }
 
 };

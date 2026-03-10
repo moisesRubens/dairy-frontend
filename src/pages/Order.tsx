@@ -87,7 +87,7 @@ export function OrdersPage() {
   };
 
   const handleViewOrder = (id: number) => {
-    navigate(`/orders/${id}`);
+    orderService.getOrder(id)
   };
 
   const handleEditOrder = (id: number) => {
