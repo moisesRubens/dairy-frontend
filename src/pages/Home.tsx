@@ -499,7 +499,7 @@ useEffect(() => {
                         <td className="product-name">{product.name}</td>
                         <td>
                           <span className="quantity-value">
-                            {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
+                            {retirada.remaining_quantity} {getUnitSymbol(retirada.unidade_retirada)}
                           </span>
                         </td>
                         <td>R$ {formatCurrency(product.price)}</td>

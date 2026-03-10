@@ -194,6 +194,7 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
           name: item.name || item.nome || '',
           price: 0, // Será preenchido depois com o preço do produto
           quantidade_retirada: quantidadeDisponivel,
+          remaining_quantity: item.remaining_quantity,
           unidade_retirada: item.unidade || 'amount',
           data_retirada: item.data || new Date().toISOString(),
           observacao: item.observacao || null,

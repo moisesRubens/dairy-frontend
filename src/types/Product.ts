@@ -30,6 +30,7 @@ export type RetiradaResponse = {
   data_retirada: string;
   observacao: string | null;
   sale_point_id: number;
+  remaining_quantity: number;
 };
 
 export type RetirarProdutosResponse = {
