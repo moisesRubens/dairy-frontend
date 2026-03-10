@@ -85,24 +85,28 @@ const calculateProductUnit = (product: Product): ProductWithUnit => {
   };
 };
 
-export async function getProducts(): Promise<ProductWithUnit[]> {
+export async function getProducts(forceRefresh: boolean = false): Promise<ProductWithUnit[]> {
   try {
     console.log('🔍 Chamando getProducts...');
     const token = authService.getToken();
     
     // SEMPRE ADICIONA TIMESTAMP PARA EVITAR CACHE
     const timestamp = new Date().getTime();
-    const url = `${API_URL}/produto/?_=${timestamp}`;
+    let url = `${API_URL}/produto/`;
     
-    console.log('📤 URL com anti-cache:', url);
+    if (forceRefresh) {
+      url += `?_=${timestamp}`;
+    }
+    
+    console.log('📤 URL:', url);
     
     const response = await fetch(url, {
       headers: { 
         'Authorization': `Bearer ${token}`,
         "Content-Type": "application/json",
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        'Cache-Control': forceRefresh ? 'no-cache, no-store, must-revalidate' : 'default',
+        'Pragma': forceRefresh ? 'no-cache' : '',
+        'Expires': forceRefresh ? '0' : ''
       }
     });
     
@@ -114,7 +118,6 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
     const data = await response.json();
     console.log('📦 Dados recebidos da API:', data);
     
-    // A API retorna { products: [...] }
     const products = data.products || [];
     return products.map(calculateProductUnit);
     
@@ -124,11 +127,7 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   }
 }
 
-// productService.ts - Corrigir a função getRetiradasPorPontoVenda
-
-// productService.ts - Função getRetiradasPorPontoVenda CORRIGIDA com anti-cache
-
-export async function getRetiradasPorPontoVenda(salePointId?: number, date?: Date): Promise<RetiradaResponse[]> {
+export async function getRetiradasPorPontoVenda(salePointId?: number, forceRefresh: boolean = false): Promise<RetiradaResponse[]> {
   try {
     console.log(`\n=== getRetiradasPorPontoVenda(${salePointId || 'usuário logado'}) ===`);
     
@@ -142,46 +141,37 @@ export async function getRetiradasPorPontoVenda(salePointId?: number, date?: Dat
     // ADICIONA TIMESTAMP PARA EVITAR CACHE
     const timestamp = new Date().getTime();
     
-    // Monta a URL com parâmetros anti-cache
-    //let url = `${API_URL}/produto/retiradas`;
-    let url = `${API_URL}/auth/${salePointId}/outbounds`
+    let url = `${API_URL}/auth/${salePointId}/outbounds`;
     const params = new URLSearchParams();
     
     if (salePointId) {
       params.append('sale_point_id', salePointId.toString());
     }
     
-    // ADICIONA FILTRO DE DATA SE FORNECIDO
-    if (date) {
-      // Formata a data para YYYY-MM-DD
-      const dataFormatada = date.toISOString().split('T')[0];
-      params.append('data', dataFormatada);
-      console.log(`📅 Filtrando retiradas para data: ${dataFormatada}`);
-    } else {
-      // SE NÃO FORNECEU DATA, USA A DATA ATUAL
-      const dataHoje = new Date().toISOString().split('T')[0];
-      params.append('data', dataHoje);
-      console.log(`📅 Usando data atual: ${dataHoje}`);
-    }
+    // ADICIONA FILTRO DE DATA
+    const dataHoje = new Date().toISOString().split('T')[0];
+    params.append('data', dataHoje);
+    console.log(`📅 Filtrando retiradas para data: ${dataHoje}`);
     
-    // ADICIONA PARÂMETRO ANTI-CACHE
-    params.append('_', timestamp.toString());
+    // ADICIONA PARÂMETRO ANTI-CACHE SE FORCE_REFRESH FOR TRUE
+    if (forceRefresh) {
+      params.append('_', timestamp.toString());
+    }
     
     const queryString = params.toString();
     if (queryString) {
       url += `?${queryString}`;
     }
     
-    console.log('📤 URL com anti-cache:', url);
+    console.log('📤 URL:', url);
     
     const response = await fetch(url, {
       headers: { 
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        // HEADERS ANTI-CACHE
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        'Cache-Control': forceRefresh ? 'no-cache, no-store, must-revalidate' : 'default',
+        'Pragma': forceRefresh ? 'no-cache' : '',
+        'Expires': forceRefresh ? '0' : ''
       }
     });
     
@@ -191,24 +181,22 @@ export async function getRetiradasPorPontoVenda(salePointId?: number, date?: Dat
     }
     
     const data = await response.json();
-    console.log('📦 Dados brutos da API (com anti-cache):', data);
+    console.log('📦 Dados brutos da API:', data);
     
-    // A API retorna { retiradas: [...] }
     if (data && data.retiradas && Array.isArray(data.retiradas)) {
       const retiradas = data.retiradas;
-      console.log(`📦 Encontradas ${retiradas.length} retiradas para o dia ${date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}`);
+      console.log(`📦 Encontradas ${retiradas.length} retiradas`);
       
       return retiradas.map((item: any) => {
-        // CALCULA CORRETAMENTE a quantidade disponível
         const quantidadeDisponivel = (item.taken_quantity || 0) - (item.sold_quantity || 0);
         
         return {
           id: item.id,
           product_id: item.product_id,
           name: item.name || item.nome || '',
-          price: 0, // Será preenchido depois com o preço do produto
+          price: 0,
           quantidade_retirada: quantidadeDisponivel,
-          remaining_quantity: item.remaining_quantity,
+          remaining_quantity: item.remaining_quantity || quantidadeDisponivel,
           unidade_retirada: item.unidade || 'amount',
           data_retirada: item.data || new Date().toISOString(),
           observacao: item.observacao || null,
@@ -246,18 +234,12 @@ export async function retirarProdutos(
   }
 }
 
-/**
- * Subtrai (ou adiciona) quantidade do estoque de produtos
- * @param items Array de itens com product_id, quantidade (positivo para subtrair, negativo para adicionar) e unidade
- * @returns Resposta da API
- */
 export async function subtrairEstoque(
   items: ItemRetiradaDTO[]
 ): Promise<SubtrairEstoqueResponse> {
   try {
     console.log('📤 Chamando /subtrair-estoque com items:', items);
     
-    // A API espera um ARRAY DIRETAMENTE (List[ItemRetiradaDTO])
     const data = await request<SubtrairEstoqueResponse>("/subtrair-estoque", {
       method: 'POST',
       body: JSON.stringify(items),
@@ -271,20 +253,12 @@ export async function subtrairEstoque(
   }
 }
 
-// productService.ts - Apenas a função retornarTodasRetiradasAoEstoque modificada
-
-/**
- * Retorna TODAS as retiradas do dia ao estoque
- * @param salePointId ID do ponto de venda (opcional, se não fornecido usa o do usuário)
- * @returns Resposta da API com os produtos retornados
- */
 export async function retornarTodasRetiradasAoEstoque(salePointId?: number): Promise<any> {
   try {
     console.log(`📤 Chamando /produto/retornar-ao-estoque para ponto: ${salePointId || 'usuário logado'}`);
     
     const token = authService.getToken();
     
-    // Constrói a URL com query parameter se salePointId foi fornecido
     let url = `${API_URL}/produto/retornar-ao-estoque`;
     if (salePointId) {
       url += `?sale_point_id=${salePointId}`;

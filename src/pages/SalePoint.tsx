@@ -1,4 +1,4 @@
-// SalePoint.tsx - COMPLETO E CORRIGIDO
+// SalePoint.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
@@ -46,7 +46,6 @@ function SalesPointsPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Verificar autenticação
   useEffect(() => {
     const user = authService.getUser();
     const token = authService.getToken();
@@ -58,7 +57,6 @@ function SalesPointsPage() {
     }
   }, [navigate]);
 
-  // Carregar dados iniciais
   useEffect(() => {
     if (currentUser) {
       loadAllSalePoints();
@@ -70,22 +68,18 @@ function SalesPointsPage() {
       setGlobalLoading(true);
       setGlobalError('');
 
-      // 1. Carregar todos os produtos
       const productsData = await getProducts();
       setProducts(productsData || []);
 
-      // 2. Carregar todos os pontos de venda
       const salePointsData = await authService.getAllSalePoints();
       console.log('📊 Todos os pontos de venda:', salePointsData);
 
       const hoje = new Date();
       const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
-      // 3. Para cada ponto, carregar seus dados específicos
       const salePointsWithData = await Promise.all(
         salePointsData.map(async (salePoint: SalePoint) => {
           try {
-            // Buscar pedidos do dia para este ponto
             const ordersResponse = await orderService.getAll(salePoint.id, { date: hojeStr });
             const orders = ordersResponse.orders || [];
             
@@ -94,13 +88,10 @@ function SalesPointsPage() {
               0
             );
 
-            // Buscar retiradas para este ponto
             const retiradasData = await getRetiradasPorPontoVenda(salePoint.id);
             
-            // Filtrar apenas retiradas ativas (status true)
             const retiradasAtivas = retiradasData.filter(r => r.status === true);
             
-            // Enriquecer retiradas com preço dos produtos
             const retiradasComPreco = retiradasAtivas.map(retirada => {
               const product = productsData.find(p => p.id === retirada.product_id);
               return {
@@ -113,10 +104,10 @@ function SalesPointsPage() {
               ...salePoint,
               todayOrders: orders,
               todayRevenue,
-              retiradas: retiradasComPreco, // Agora só vem as ativas
+              retiradas: retiradasComPreco,
               orderItems: [],
               quantities: {},
-              isExpanded: salePoint.id === currentUser?.id, // Expande apenas o ponto do usuário atual
+              isExpanded: salePoint.id === currentUser?.id,
               loading: false,
               error: '',
               success: '',
@@ -246,7 +237,6 @@ function SalesPointsPage() {
     updateSalePointState(salePointId, { submitting: true, error: '', success: '' });
 
     try {
-      // Validar estoque
       for (const item of salePoint.orderItems) {
         const retirada = salePoint.retiradas.find(r => r.product_id === item.product_id);
         
@@ -275,15 +265,14 @@ function SalesPointsPage() {
       });
 
       const orderData = {
-        sale_point_id: salePointId, // Importante: incluir o ID do ponto de venda
         description: `Pedido do ponto ${salePoint.name} com ${salePoint.orderItems.length} item(ns)`,
         items: items
       };
 
       console.log('📤 Enviando pedido:', orderData);
       
-      //Nao deve criar pedido aqui
-      await orderService.create(orderData, );
+      // Corrigido: Passa o salePointId como segundo parâmetro
+      await orderService.create(orderData, salePointId);
       
       await refreshSalePointData(salePointId);
       
@@ -325,16 +314,12 @@ function SalesPointsPage() {
     updateSalePointState(salePointId, { submitting: true, error: '', success: '' });
 
     try {
-      // Usar a função específica para retornar ao estoque
-      // Nota: Pode ser necessário importar retornarTodasRetiradasAoEstoque
       const itemsParaRetornar = salePoint.retiradas.map(retirada => ({
         product_id: retirada.product_id,
         quantidade: Math.abs(retirada.quantidade_retirada),
         unidade: retirada.unidade_retirada
       }));
 
-      // Se existir a função específica, use-a. Senão, use subtrairEstoque com valores negativos?
-      // Por enquanto, vamos usar subtrairEstoque (assumindo que aceita valores positivos para retornar)
       const response = await subtrairEstoque(itemsParaRetornar);
       
       console.log('✅ Resposta do retorno:', response);
@@ -349,7 +334,6 @@ function SalesPointsPage() {
         });
       }
       
-      // Recarregar dados após retorno
       setTimeout(() => {
         refreshSalePointData(salePointId);
       }, 1500);
@@ -364,7 +348,6 @@ function SalesPointsPage() {
     }
   };
 
-  // FUNÇÃO refreshSalePointData CORRIGIDA
   const refreshSalePointData = async (salePointId: number) => {
     try {
       const hoje = new Date();
@@ -399,7 +382,7 @@ function SalesPointsPage() {
                 todayOrders: orders,
                 todayRevenue,
                 retiradas: retiradasComPreco,
-                orderItems: [], // Limpa itens do pedido após refresh
+                orderItems: [],
                 quantities: {}
               }
             : sp
@@ -526,11 +509,9 @@ function SalesPointsPage() {
 
         <h2 className="page-title">Pontos de Venda</h2>
 
-        {/* Lista de Pontos de Venda */}
         <div className="sale-points-list">
           {salePoints.map((salePoint) => (
             <div key={salePoint.id} className="sale-point-card">
-              {/* Cabeçalho do Ponto */}
               <div 
                 className="sale-point-header"
                 onClick={() => toggleExpand(salePoint.id)}
@@ -552,7 +533,6 @@ function SalesPointsPage() {
                 </div>
               </div>
 
-              {/* Conteúdo Expandido */}
               {salePoint.isExpanded && (
                 <div className="sale-point-content">
                   {salePoint.error && (
@@ -562,7 +542,6 @@ function SalesPointsPage() {
                     <div className="success-message">{salePoint.success}</div>
                   )}
 
-                  {/* Resumo do Dia */}
                   <div className="info-section">
                     <div className="section-header">
                       <h4>Resumo do Dia</h4>
@@ -588,7 +567,6 @@ function SalesPointsPage() {
                     </div>
                   </div>
 
-                  {/* Tabela de Produtos */}
                   <div className="products-section">
                     <div className="section-header">
                       <h4>Produtos em Estoque</h4>
@@ -624,7 +602,7 @@ function SalesPointsPage() {
                                   <td className="product-name">{product.name}</td>
                                   <td>
                                     <span className="quantity-value">
-                                      {retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
+                                      {retirada.remaining_quantity || retirada.quantidade_retirada} {getUnitSymbol(retirada.unidade_retirada)}
                                     </span>
                                   </td>
                                   <td>R$ {formatCurrency(product.price)}</td>
@@ -673,7 +651,6 @@ function SalesPointsPage() {
                     </div>
                   </div>
 
-                  {/* Resumo do Pedido */}
                   {salePoint.orderItems.length > 0 && (
                     <div className="order-summary">
                       <h4>

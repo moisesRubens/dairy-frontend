@@ -1,3 +1,4 @@
+// OrdersPage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { Order } from '../types/Order';
@@ -15,22 +16,19 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Estado para armazenar os detalhes do pedido selecionado
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderResponseDTO | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   
-  // Estados para filtros - simplificado para usar os parâmetros da API
   const [filters, setFilters] = useState(() => {
     const stateFilters = location.state?.filters;
     return {
       date: stateFilters?.date || '',
       description: '',
-      status: '' // 'true' ou 'false' como string
+      status: ''
     };
   });
   
-  // Estados para paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
@@ -43,14 +41,13 @@ export function OrdersPage() {
 
   useEffect(() => {
     loadOrders();
-  }, [filters]); // Recarrega quando os filtros mudam
+  }, [filters]);
 
   const loadOrders = async () => {
     try {
       const user = authService.getUser();
       setLoading(true);
       
-      // Prepara os filtros para enviar à API
       const apiFilters: any = {};
       if (filters.date) apiFilters.date = filters.date;
       if (filters.description) apiFilters.description = filters.description;
@@ -94,11 +91,8 @@ export function OrdersPage() {
   };
 
   const handleViewOrderDetails = async (orderId: number) => {
-    console.log('🔵 FUNÇÃO CHAMADA - orderId:', orderId);
-    
     try {
       if (expandedOrderId === orderId) {
-        console.log('🔽 Fechando detalhes do pedido', orderId);
         setExpandedOrderId(null);
         setSelectedOrderDetails(null);
         return;
@@ -108,21 +102,13 @@ export function OrdersPage() {
       setExpandedOrderId(orderId);
       
       const response = await orderService.getOrder(orderId);
-      console.log('✅ Resposta RAW:', response);
       
-      // Pega os dados (se veio como {order} ou direto)
       const apiData = response.order || response;
-      console.log('📦 apiData:', apiData);
       
       if (!apiData) {
         throw new Error('Dados não encontrados');
       }
       
-      // DEBUG: Ver o que tem no apiData
-      console.log('🔍 Chaves do apiData:', Object.keys(apiData));
-      console.log('🔍 apiData.item_order:', apiData.item_order);
-      
-      // ADAPTADOR CORRIGIDO - usa item_order em vez de items
       const adaptedOrder: OrderResponseDTO = {
         id: apiData.id,
         status: apiData.status,
@@ -137,9 +123,6 @@ export function OrdersPage() {
           liters: item.liters
         })) : []
       };
-      
-      console.log('✅ Dados adaptados:', adaptedOrder);
-      console.log('✅ Itens adaptados:', adaptedOrder.items);
       
       setSelectedOrderDetails(adaptedOrder);
       
@@ -160,7 +143,6 @@ export function OrdersPage() {
     if (window.confirm('Tem certeza que deseja excluir este pedido?')) {
       try {
         await orderService.delete(id);
-        // Se o pedido excluído estava expandido, limpa os detalhes
         if (expandedOrderId === id) {
           setExpandedOrderId(null);
           setSelectedOrderDetails(null);
@@ -200,7 +182,6 @@ export function OrdersPage() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Adapta o status boolean para exibição
   const getStatusBadge = (status: boolean) => {
     if (status) {
       return <span className="status-badge status-pending">Pago</span>;
@@ -209,38 +190,57 @@ export function OrdersPage() {
     }
   };
 
-  // Componente para exibir os itens do pedido
-  // Componente para exibir os itens do pedido - CORRIGIDO
-  // Componente TEMPORÁRIO para teste - substitua o OrderDetails atual
   const OrderDetails = ({ order, items }: { order: OrderResponseDTO, items: ItemOrderResponseDTO[] }) => {
-    console.log('🔥🔥🔥 OrderDetails FOI RENDERIZADO!');
-    console.log('📦 order recebido:', order);
-    console.log('📦 items recebidos:', items);
-    console.log('📦 items length:', items?.length);
-    
     return (
-      <div style={{ 
-        backgroundColor: 'red', 
-        color: 'white', 
-        padding: '20px',
-        margin: '10px 0',
-        fontSize: '20px',
-        fontWeight: 'bold'
-      }}>
+      <div className="order-details-container">
+        <h4>Itens do Pedido</h4>
         {items && items.length > 0 ? (
-          <div>
-            <h3 style={{ color: 'yellow' }}>ITENS ENCONTRADOS! {items.length} itens</h3>
-            <pre style={{ color: 'white', fontSize: '14px' }}>
-              {JSON.stringify(items, null, 2)}
-            </pre>
-          </div>
+          <table className="items-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Quantidade</th>
+                <th>Preço Unit.</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => {
+                let quantity = 0;
+                let unit = '';
+                
+                if (item.amount && item.amount > 0) {
+                  quantity = item.amount;
+                  unit = 'un';
+                } else if (item.kg && item.kg > 0) {
+                  quantity = item.kg;
+                  unit = 'kg';
+                } else if (item.liters && item.liters > 0) {
+                  quantity = item.liters;
+                  unit = 'L';
+                }
+                
+                const total = quantity * (item.item_price || 0);
+                
+                return (
+                  <tr key={index}>
+                    <td>Produto #{item.product_id}</td>
+                    <td>{quantity} {unit}</td>
+                    <td>{formatCurrency(item.item_price || 0)}</td>
+                    <td>{formatCurrency(total)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'right' }}><strong>Total:</strong></td>
+                <td><strong>{formatCurrency(order.total_value || 0)}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
         ) : (
-          <div>
-            <h3 style={{ color: 'yellow' }}>⚠️ NENHUM ITEM ENCONTRADO!</h3>
-            <p>order.id: {order?.id}</p>
-            <p>order.date: {order?.date}</p>
-            <p>order.total_value: {order?.total_value}</p>
-          </div>
+          <p>Nenhum item encontrado para este pedido.</p>
         )}
       </div>
     );
@@ -392,19 +392,12 @@ export function OrdersPage() {
                           {loadingDetails ? (
                             <div className="loading-details">Carregando itens...</div>
                           ) : selectedOrderDetails ? (
-                            <>
-                              <div style={{ backgroundColor: 'blue', color: 'white', padding: '5px' }}>
-                                DEBUG: selectedOrderDetails.id = {selectedOrderDetails.id}
-                              </div>
-                              <OrderDetails 
-                                order={selectedOrderDetails} 
-                                items={selectedOrderDetails.items} 
-                              />
-                            </>
+                            <OrderDetails 
+                              order={selectedOrderDetails} 
+                              items={selectedOrderDetails.items} 
+                            />
                           ) : (
-                            <div style={{ backgroundColor: 'orange', padding: '20px' }}>
-                              selectedOrderDetails é null
-                            </div>
+                            <div>Erro ao carregar detalhes</div>
                           )}
                         </td>
                       </tr>
