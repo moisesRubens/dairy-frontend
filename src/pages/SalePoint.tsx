@@ -89,7 +89,6 @@ function SalesPointsPage() {
             const ordersResponse = await orderService.getAll(salePoint.id, { date: hojeStr });
             const orders = ordersResponse.orders || [];
             
-            // Calcular receita do dia
             const todayRevenue = orders.reduce(
               (sum: number, order: Order) => sum + order.total_value, 
               0
@@ -114,7 +113,7 @@ function SalesPointsPage() {
               ...salePoint,
               todayOrders: orders,
               todayRevenue,
-              retiradas: retiradasComPreco,
+              retiradas: retiradasComPreco, // Agora só vem as ativas
               orderItems: [],
               quantities: {},
               isExpanded: salePoint.id === currentUser?.id, // Expande apenas o ponto do usuário atual
@@ -263,7 +262,6 @@ function SalesPointsPage() {
         }
       }
 
-      // Mapear itens
       const items = salePoint.orderItems.map(item => {
         const baseItem = { product_id: Number(item.product_id) };
 
@@ -284,9 +282,9 @@ function SalesPointsPage() {
 
       console.log('📤 Enviando pedido:', orderData);
       
-      await orderService.create(orderData);
+      //Nao deve criar pedido aqui
+      await orderService.create(orderData, );
       
-      // Recarregar dados do ponto
       await refreshSalePointData(salePointId);
       
       updateSalePointState(salePointId, { 
@@ -366,6 +364,7 @@ function SalesPointsPage() {
     }
   };
 
+  // FUNÇÃO refreshSalePointData CORRIGIDA
   const refreshSalePointData = async (salePointId: number) => {
     try {
       const hoje = new Date();
