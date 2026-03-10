@@ -47,6 +47,7 @@ export function OrdersPage() {
 
   const loadOrders = async () => {
     try {
+      const user = authService.getUser();
       setLoading(true);
       
       // Prepara os filtros para enviar à API
@@ -57,7 +58,7 @@ export function OrdersPage() {
       
       console.log('🔍 Aplicando filtros:', apiFilters);
       
-      const response = await orderService.getAll(apiFilters);
+      const response = await orderService.getAll(user?.id, apiFilters);
       console.log('📦 Pedidos recebidos:', response.orders);
       
       setOrders(response.orders);

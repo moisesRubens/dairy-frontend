@@ -40,15 +40,16 @@ function Home() {
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
-  // Substitua os useEffects por isso:
-useEffect(() => {
-  if (novaReserva) {
-    console.log('🔄 Nova reserva detectada! Recarregando dados...');
-    loadInitialData();
-    limparNotificacao();
-  }
-}, [novaReserva, limparNotificacao]);
+  // Efeito para nova reserva via contexto
+  useEffect(() => {
+    if (novaReserva) {
+      console.log('🔄 Nova reserva detectada! Recarregando dados...');
+      loadInitialData();
+      limparNotificacao();
+    }
+  }, [novaReserva, limparNotificacao]);
 
+  // Efeito para verificar autenticação
   useEffect(() => {
     const currentUser = authService.getUser();
     const token = authService.getToken();
@@ -60,13 +61,28 @@ useEffect(() => {
     }
   }, [navigate]);
 
+  // Efeito para carregar dados iniciais quando usuário estiver disponível
   useEffect(() => {
     if (user) {
       loadInitialData();
     }
   }, [user]);
 
-  // Home.tsx - Modifique a função loadInitialData para filtrar apenas retiradas com status true
+  // 🔥 NOVO EFEITO: Detecta quando a página é mostrada (voltar de Products)
+  useEffect(() => {
+    const handlePageShow = () => {
+      console.log('🔄 Página exibida (pageshow), recarregando dados...');
+      if (user) {
+        loadInitialData();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [user]);
 
   const loadInitialData = async () => {
     try {
@@ -74,6 +90,7 @@ useEffect(() => {
       
       const currentUser = user;
       console.log('👤 Usuário atual:', currentUser);
+      console.log('⏰ Timestamp do carregamento:', new Date().toISOString());
       
       const hoje = new Date();
       const ano = hoje.getFullYear();
@@ -81,15 +98,17 @@ useEffect(() => {
       const dia = String(hoje.getDate()).padStart(2, '0');
       const hojeStr = `${ano}-${mes}-${dia}`;
       
+      console.log('📅 Data consultada:', hojeStr);
+      
       const [productsData, ordersResponse, retiradasData] = await Promise.all([
-        getProducts(),
-        orderService.getAll({ date: hojeStr }),
-        getRetiradasPorPontoVenda(currentUser?.id) // ← PASSA O ID DO USUÁRIO!
+        getProducts(true), // true = força refresh
+        orderService.getAll(currentUser?.id, { date: hojeStr }),
+        getRetiradasPorPontoVenda(currentUser?.id, true) // true = força refresh
       ]);
       
       console.log('📦 Produtos carregados:', productsData.length);
       console.log('📦 Pedidos carregados:', ordersResponse.orders?.length);
-      console.log('📦 Retiradas carregadas (todas):', retiradasData);
+      console.log('📦 Retiradas carregadas (todas):', retiradasData.length);
       
       // FILTRO IMPORTANTE: Pega apenas retiradas com status true (ativas)
       const retiradasAtivas = retiradasData.filter(retirada => retirada.status === true);
@@ -250,7 +269,7 @@ useEffect(() => {
 
       console.log('📤 Enviando pedido:', JSON.stringify(orderData, null, 2));
       
-      const orderResponse = await orderService.create(orderData);
+      const orderResponse = await orderService.create(orderData, user.id);
       console.log('✅ Pedido criado:', orderResponse);
       
       setSuccess('Pedido criado com sucesso!');
@@ -276,11 +295,6 @@ useEffect(() => {
     }
   };
 
-  // FUNÇÃO CORRIGIDA - Retornar ao estoque
-  // Home.tsx - A função handleReturnAllToStock permanece EXATAMENTE como estava na versão antiga
-
-  // Home.tsx - Função handleReturnAllToStock CORRIGIDA
-
   const handleReturnAllToStock = async () => {
     if (retiradas.length === 0) {
       setError('Não há retiradas para retornar ao estoque');
@@ -300,28 +314,21 @@ useEffect(() => {
     setSuccess('');
 
     try {
-      // Usa o ID do ponto de venda do usuário logado
       const salePointId = user?.id;
       
       console.log(`🔄 Retornando produtos ao estoque - Ponto: ${salePointId}`);
       
-      // Chama a função do service
       const response = await retornarTodasRetiradasAoEstoque(salePointId);
       
       console.log('✅ Resposta completa:', response);
       
-      // 🔥 IMPORTANTE: Atualiza os dados com base na resposta da API
       if (response && response.sucessos) {
         setSuccess(`${response.sucessos.length} produtos retornados ao estoque com sucesso!`);
-        
-        // FORÇA O RECARREGAMENTO DOS DADOS com timestamp anti-cache
-        await loadInitialData();
-        
       } else {
         setSuccess('Produtos retornados ao estoque com sucesso!');
-        // Recarrega mesmo sem resposta detalhada
-        await loadInitialData();
       }
+      
+      await loadInitialData();
       
     } catch (error: any) {
       console.error('❌ Erro ao retornar produtos:', error);
@@ -431,7 +438,6 @@ useEffect(() => {
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
-        {/* Resumo do Dia */}
         <div className="info-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
             <h3>Resumo do Dia</h3>
@@ -453,11 +459,9 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Card de Cadastro Rápido */}
         <div className="quick-order-card">
           <h4>Cadastro de pedidos</h4>
 
-          {/* Tabela de Retiradas */}
           <div className="table-responsive">
             <div style={{ 
               display: 'flex', 
@@ -536,7 +540,6 @@ useEffect(() => {
             </table>
           </div>
 
-          {/* Resumo do Pedido */}
           {orderItems.length > 0 && (
             <div className="order-summary">
               <h4>

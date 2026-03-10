@@ -143,7 +143,8 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
     const timestamp = new Date().getTime();
     
     // Monta a URL com parâmetros anti-cache
-    let url = `${API_URL}/produto/retiradas`;
+    //let url = `${API_URL}/produto/retiradas`;
+    let url = `${API_URL}/auth/${salePointId}/outbounds`
     const params = new URLSearchParams();
     
     if (salePointId) {

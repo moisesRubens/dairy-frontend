@@ -11,7 +11,7 @@ export const orderService = {
    * @param filters Filtros para a busca (date, description, status)
    * @returns Lista de pedidos
    */
-  async getAll(filters?: {
+  async getAll(id?: number, filters?: {
     date?: string;
     description?: string;
     status?: string;
@@ -22,8 +22,9 @@ export const orderService = {
       if (!token) {
         throw new Error('Token não encontrado');
       }
-      let url = `${API_URL}/pedidos/`;
-    
+      //let url = `${API_URL}/pedidos/`;
+      let url = `${API_URL}/auth/${id}/order/`;
+
       if(filters) {
         const params = new URLSearchParams();
         if (filters.date) params.append('date', filters.date);
@@ -79,9 +80,9 @@ export const orderService = {
       }
       
       // Monta a URL com query parameters
-      let url = `${API_URL}/auth/pedidos?sale_point_id=${salePointId}`;
+      let url = `${API_URL}/auth/${salePointId}/order`;
       if (date) {
-        url += `&date=${date}`;
+        url += `?date=${date}`;
       }
       
       console.log(`🔍 Buscando pedidos do ponto ${salePointId}${date ? ` na data ${date}` : ''}`);
@@ -151,19 +152,20 @@ export const orderService = {
       kg?: number | null;
       liters?: number | null;
     }>;
-  }): Promise<{ order: Order }> {
+  }, id: number): Promise<{ order: Order }> {
     try {
       const token = authService.getToken();
       
       if (!token) {
         throw new Error('Token não encontrado');
       }
-      
+
       console.log('📤 OrderService.create - Dados recebidos:', JSON.stringify(data, null, 2));
       console.log('📤 OrderService.create - Token:', token ? 'presente' : 'ausente');
       
-      // URL CORRETA: /pedidos/cadastrar (como no backend)
-      const response = await fetch(`${API_URL}/pedidos/cadastrar`, {
+      //let url = `${API_URL}/pedidos/cadastrar`
+      let url = `${API_URL}/auth/${id}/order`
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,
