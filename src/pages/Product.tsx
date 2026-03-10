@@ -5,6 +5,7 @@ import type { ProductWithUnit } from "../types/Product";
 import { authService } from '../services/AuthService';
 import { retirarProdutos } from '../services/productService'; // Importando a função
 import React from "react";
+import { useReserva } from '../contexts/ReservaContext';
 import { 
   Package, 
   ShoppingBag, 
@@ -16,6 +17,7 @@ import {
 import '../styles/Product.css';
 
 export default function ProductsPage() {
+  const { notificarNovaReserva } = useReserva();
   const [products, setProducts] = useState<ProductWithUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(authService.getUser());
@@ -112,83 +114,6 @@ export default function ProductsPage() {
     setShowReserveModal(true);
   };
 
-  const handleReserveSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedProduct || !reserveQuantity) {
-      setError('Preencha a quantidade');
-      return;
-    }
-
-    const quantity = parseFloat(reserveQuantity);
-    if (isNaN(quantity) || quantity <= 0) {
-      setError('Quantidade inválida');
-      return;
-    }
-
-    setSubmitting(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // Determina a unidade correta baseada no produto
-      let unidade = 'amount';
-      if (selectedProduct.kg && selectedProduct.kg > 0) {
-        unidade = 'kg';
-      } else if (selectedProduct.liters && selectedProduct.liters > 0) {
-        unidade = 'liters';
-      }
-
-      // Prepara o payload para o endpoint /retirar
-      const produtos = [{
-        product_id: selectedProduct.id,
-        quantidade: quantity,
-        unidade: unidade
-      }];
-
-      const observacao = reserveObservation.trim() || `Reserva de ${selectedProduct.name}`;
-
-      console.log('📤 Enviando requisição para /retirar:', {
-        produtos,
-        observacao
-      });
-
-      // Chama o serviço de retirar produtos
-      const response = await retirarProdutos(produtos, observacao);
-      
-      console.log('✅ Resposta do servidor:', response);
-
-      // Verifica se houve erros
-      if (response.detalhes?.total_erros > 0) {
-        const erroMsg = response.detalhes.erros[0]?.erro || 'Erro ao reservar produto';
-        setError(erroMsg);
-      } else {
-        setSuccess(`✅ Produto reservado com sucesso!`);
-        
-        // Atualiza a lista de produtos para refletir o novo estoque
-        setTimeout(() => {
-          carregarProdutos();
-        }, 1500);
-      }
-
-      // Fecha o modal após 2 segundos em caso de sucesso
-      if (response.detalhes?.total_erros === 0) {
-        setTimeout(() => {
-          setShowReserveModal(false);
-          setSelectedProduct(null);
-          setReserveQuantity('');
-          setReserveObservation('');
-        }, 2000);
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Erro ao reservar produto:', error);
-      setError(error.message || 'Erro ao reservar produto. Tente novamente.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const getUnitType = (product: ProductWithUnit): string => {
     if (product.amount && product.amount > 0) return 'unidades';
     if (product.kg && product.kg > 0) return 'kg';
@@ -208,6 +133,81 @@ export default function ProductsPage() {
     if (product.kg && product.kg > 0) return product.kg;
     if (product.liters && product.liters > 0) return product.liters;
     return 0;
+  };
+
+  const handleReserveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedProduct || !reserveQuantity) {
+      setError('Preencha a quantidade');
+      return;
+    }
+
+    const quantity = parseFloat(reserveQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      setError('Quantidade inválida');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      let unidade = 'amount';
+      if (selectedProduct.kg && selectedProduct.kg > 0) {
+        unidade = 'kg';
+      } else if (selectedProduct.liters && selectedProduct.liters > 0) {
+        unidade = 'liters';
+      }
+
+      const produtos = [{
+        product_id: selectedProduct.id,
+        quantidade: quantity,
+        unidade: unidade
+      }];
+
+      const observacao = reserveObservation.trim() || `Reserva de ${selectedProduct.name}`;
+
+      console.log('📤 Enviando requisição para /retirar:', {
+        produtos,
+        observacao
+      });
+
+      const response = await retirarProdutos(produtos, observacao);
+      
+      console.log('✅ Resposta do servidor:', response);
+
+      if (response.detalhes?.total_erros > 0) {
+        const erroMsg = response.detalhes.erros[0]?.erro || 'Erro ao reservar produto';
+        setError(erroMsg);
+      } else {
+        setSuccess(`✅ Produto reservado com sucesso!`);
+        
+        // 🔥 NOTIFICA A HOME QUE UMA NOVA RESERVA FOI FEITA
+        notificarNovaReserva();
+        
+        // Atualiza a lista de produtos
+        setTimeout(() => {
+          carregarProdutos();
+        }, 1500);
+      }
+
+      if (response.detalhes?.total_erros === 0) {
+        setTimeout(() => {
+          setShowReserveModal(false);
+          setSelectedProduct(null);
+          setReserveQuantity('');
+          setReserveObservation('');
+        }, 2000);
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao reservar produto:', error);
+      setError(error.message || 'Erro ao reservar produto. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {

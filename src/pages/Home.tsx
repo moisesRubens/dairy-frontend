@@ -1,13 +1,14 @@
-// Home.tsx - Completo e corrigido com classes Paramount+
+// Home.tsx - Completo e corrigido
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
 import { orderService } from '../services/OrderService';
-import { getProducts, getRetiradasPorPontoVenda, subtrairEstoque } from '../services/productService';
+import { getProducts, getRetiradasPorPontoVenda, retornarTodasRetiradasAoEstoque } from '../services/productService';
 import { Trash2, ShoppingCart, RotateCcw, LogOut, Package, FileText, BarChart3, Users } from 'lucide-react';
 import type { SalePoint } from '../types/SalePoint';
 import type { Order } from '../types/Order';
 import type { ProductWithUnit, RetiradaResponse } from '../types/Product';
+import { useReserva } from '../contexts/ReservaContext';
 import '../styles/Home.css';
 
 type OrderItem = {
@@ -25,6 +26,7 @@ type Retirada = RetiradaResponse & {
 };
 
 function Home() {
+  const { novaReserva, limparNotificacao } = useReserva();
   const [user, setUser] = useState<SalePoint | null>(null);
   const [todayOrders, setTodayOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductWithUnit[]>([]);
@@ -37,6 +39,15 @@ function Home() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
+
+  // Substitua os useEffects por isso:
+useEffect(() => {
+  if (novaReserva) {
+    console.log('🔄 Nova reserva detectada! Recarregando dados...');
+    loadInitialData();
+    limparNotificacao();
+  }
+}, [novaReserva, limparNotificacao]);
 
   useEffect(() => {
     const currentUser = authService.getUser();
@@ -54,6 +65,8 @@ function Home() {
       loadInitialData();
     }
   }, [user]);
+
+  // Home.tsx - Modifique a função loadInitialData para filtrar apenas retiradas com status true
 
   const loadInitialData = async () => {
     try {
@@ -76,9 +89,13 @@ function Home() {
       
       console.log('📦 Produtos carregados:', productsData.length);
       console.log('📦 Pedidos carregados:', ordersResponse.orders?.length);
-      console.log('📦 Retiradas carregadas:', retiradasData);
+      console.log('📦 Retiradas carregadas (todas):', retiradasData);
       
-      const retiradasComPreco: Retirada[] = retiradasData.map(retirada => {
+      // FILTRO IMPORTANTE: Pega apenas retiradas com status true (ativas)
+      const retiradasAtivas = retiradasData.filter(retirada => retirada.status === true);
+      console.log('📦 Retiradas ativas (status=true):', retiradasAtivas.length);
+      
+      const retiradasComPreco: Retirada[] = retiradasAtivas.map(retirada => {
         const product = productsData.find(p => p.id === retirada.product_id);
         return {
           ...retirada,
@@ -259,51 +276,68 @@ function Home() {
     }
   };
 
+  // FUNÇÃO CORRIGIDA - Retornar ao estoque
+  // Home.tsx - A função handleReturnAllToStock permanece EXATAMENTE como estava na versão antiga
+
   const handleReturnAllToStock = async () => {
     if (retiradas.length === 0) {
       setError('Não há retiradas para retornar ao estoque');
       return;
     }
+    
+    const totalItens = retiradas.reduce((sum, r) => sum + r.quantidade_retirada, 0);
+    
     const confirmReturn = window.confirm(
-      `Confirma o retorno de ${retiradas.length} produto(s) ao estoque?`
+      `Confirma o retorno de ${retiradas.length} produto(s) (total: ${totalItens} unidades) ao estoque?`
     );
+    
     if (!confirmReturn) return;
+    
     setSubmitting(true);
     setError('');
     setSuccess('');
 
     try {
-      const itemsParaRetornar = retiradas.map(retirada => ({
-        product_id: retirada.product_id,
-        quantidade: Math.abs(retirada.quantidade_retirada),
-        unidade: retirada.unidade_retirada
-      }));
-
-      console.log('📤 Enviando requisição para /subtrair-estoque:', itemsParaRetornar);
-
-      const response = await subtrairEstoque(itemsParaRetornar);
+      // Usa o ID do ponto de venda do usuário logado
+      const salePointId = user?.id;
       
-      if (response.detalhes?.total_erros > 0) {
-        const errosMsg = response.detalhes.erros
-          .map(e => `• ${e.nome || `Produto ${e.product_id}`}: ${e.erro}`)
-          .join('\n');
-        
-        setError(`Falha ao retornar ${response.detalhes.total_erros} produto(s):\n${errosMsg}`);
-        
-        if (response.detalhes.total_sucessos > 0) {
-          setSuccess(`${response.detalhes.total_sucessos} produtos retornados com sucesso.`);
-        }
+      console.log(`🔄 Retornando produtos ao estoque - Ponto: ${salePointId}`);
+      
+      // Chama a função do service (agora apontando para o novo endpoint)
+      const response = await retornarTodasRetiradasAoEstoque(salePointId);
+      setRetiradas('');
+      console.log('✅ Resposta completa:', response);
+      
+      // Verifica o formato da resposta
+      if (response && response.sucessos) {
+        setSuccess(`${response.sucessos.length} produtos retornados ao estoque com sucesso!`);
+      } else if (response && Array.isArray(response)) {
+        setSuccess(`${response.length} produtos retornados ao estoque com sucesso!`);
       } else {
-        setSuccess(`${retiradas.length} produtos retornados ao estoque com sucesso!`);
+        setSuccess('Produtos retornados ao estoque com sucesso!');
       }
       
+      // Recarrega os dados
       setTimeout(() => {
         loadInitialData();
       }, 1500);
       
     } catch (error: any) {
       console.error('❌ Erro ao retornar produtos:', error);
-      setError(error.message || 'Erro ao retornar produtos ao estoque. Tente novamente.');
+      
+      let mensagemErro = 'Erro ao retornar produtos ao estoque.';
+      
+      if (error.message) {
+        if (error.message.includes('404')) {
+          mensagemErro = 'API de retorno não encontrada. Verifique o endpoint.';
+        } else if (error.message.includes('401')) {
+          mensagemErro = 'Sessão expirada. Faça login novamente.';
+        } else {
+          mensagemErro = error.message;
+        }
+      }
+      
+      setError(mensagemErro);
     } finally {
       setSubmitting(false);
     }

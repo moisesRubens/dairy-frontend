@@ -1,5 +1,10 @@
 import Router from "./routes/router";
+import { ReservaProvider } from './contexts/ReservaContext';
 
 export default function App() {
-  return <Router />;
+  return (
+    <ReservaProvider>
+      <Router />
+    </ReservaProvider>
+  );
 }

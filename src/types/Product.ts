@@ -24,6 +24,7 @@ export type RetiradaResponse = {
   product_id: number;
   name: string;
   price?: number; 
+  status: boolean;
   quantidade_retirada: number;
   unidade_retirada: string;
   data_retirada: string;

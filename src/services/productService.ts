@@ -114,7 +114,7 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   }
 }
 
-// productService.ts - Versão CORRIGIDA
+// productService.ts - Corrigir a função getRetiradasPorPontoVenda
 
 export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<RetiradaResponse[]> {
   try {
@@ -158,17 +158,23 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
       const retiradas = data.retiradas;
       console.log(`📦 Encontradas ${retiradas.length} retiradas`);
       
-      return retiradas.map((item: any) => ({
-        id: item.id,
-        product_id: item.product_id,
-        name: item.nome || item.name || '',
-        price: 0,
-        quantidade_retirada: (item.taken_quantity - item.sold_quantity) || 0,
-        unidade_retirada: item.unidade || 'amount',
-        data_retirada: item.data_retirada || item.data || new Date().toISOString(),
-        observacao: item.observacao || null,
-        sale_point_id: item.sale_point_id || salePointId || 0
-      }));
+      return retiradas.map((item: any) => {
+        // CALCULA CORRETAMENTE a quantidade disponível
+        const quantidadeDisponivel = (item.taken_quantity || 0) - (item.sold_quantity || 0);
+        
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          name: item.name || item.nome || '',
+          price: 0, // Será preenchido depois com o preço do produto
+          quantidade_retirada: quantidadeDisponivel, // ← AGORA CORRETO!
+          unidade_retirada: item.unidade || 'amount',
+          data_retirada: item.data || new Date().toISOString(),
+          observacao: item.observacao || null,
+          sale_point_id: item.sale_point_id || salePointId || 0,
+          status: item.status || false  // Adiciona o status
+        };
+      });
     }
     
     console.log('⚠️ Formato de resposta inesperado:', data);
@@ -220,6 +226,51 @@ export async function subtrairEstoque(
     return data;
   } catch (error) {
     console.error('❌ Erro ao subtrair estoque:', error);
+    throw error;
+  }
+}
+
+// productService.ts - Apenas a função retornarTodasRetiradasAoEstoque modificada
+
+/**
+ * Retorna TODAS as retiradas do dia ao estoque
+ * @param salePointId ID do ponto de venda (opcional, se não fornecido usa o do usuário)
+ * @returns Resposta da API com os produtos retornados
+ */
+export async function retornarTodasRetiradasAoEstoque(salePointId?: number): Promise<any> {
+  try {
+    console.log(`📤 Chamando /produto/retornar-ao-estoque para ponto: ${salePointId || 'usuário logado'}`);
+    
+    const token = authService.getToken();
+    
+    // Constrói a URL com query parameter se salePointId foi fornecido
+    let url = `${API_URL}/produto/retornar-ao-estoque`;
+    if (salePointId) {
+      url += `?sale_point_id=${salePointId}`;
+    }
+    
+    console.log('📤 URL:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Resposta de erro:', response.status, errorText);
+      throw new Error(`Erro ${response.status}: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Resposta de retornar-ao-estoque:', data);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ Erro ao retornar produtos ao estoque:', error);
     throw error;
   }
 }
