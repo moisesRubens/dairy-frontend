@@ -1,9 +1,9 @@
-// ProductsPage.tsx - Corrigido com a função de reserva usando o endpoint /retirar
+// ProductsPage.tsx - Versão Corrigida
 import { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import type { ProductWithUnit } from "../types/Product";
 import { authService } from '../services/AuthService';
-import { retirarProdutos } from '../services/productService'; // Importando a função
+import { retirarProdutos, getProducts } from '../services/productService'; // Importe getProducts também!
 import React from "react";
 import { useReserva } from '../contexts/ReservaContext';
 import { 
@@ -12,19 +12,23 @@ import {
   TrendingUp,
   Plus,
   ArrowLeft,
-  CalendarClock
+  CalendarClock,
+  RefreshCw
 } from 'lucide-react';
 import '../styles/Product.css';
+
+const API_URL = import.meta.env.VITE_API_URL as string;
 
 export default function ProductsPage() {
   const { notificarNovaReserva } = useReserva();
   const [products, setProducts] = useState<ProductWithUnit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(authService.getUser());
   const [showReserveModal, setShowReserveModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithUnit | null>(null);
   const [reserveQuantity, setReserveQuantity] = useState('');
-  const [reserveObservation, setReserveObservation] = useState(''); // Campo de observação
+  const [reserveObservation, setReserveObservation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -43,57 +47,35 @@ export default function ProductsPage() {
     carregarProdutos();
   }, [navigate]);
 
-  const carregarProdutos = async () => {
-    setLoading(true);
+  // Função para carregar produtos usando o serviço com anti-cache
+  const carregarProdutos = async (forceRefresh: boolean = false) => {
+    if (forceRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    
     try {
-      const token = authService.getToken();
+      console.log('🔄 Carregando produtos...');
       
-      const response = await fetch('http://localhost:8000/produto/', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
-        }
-      });
+      // USA O SERVICE COM FORCE REFRESH
+      const produtos = await getProducts(forceRefresh);
       
-      const data = await response.json();
-      
-      // Calcula a unidade para cada produto
-      const produtosComUnidade = (data.products || []).map((product: any) => {
-        const amount = product.amount ?? 0;
-        const kg = product.kg ?? 0;
-        const liters = product.liters ?? 0;
-        
-        let unitIcon = '📦';
-        let unitLabel = 'Sem unidade';
-        
-        if (amount > 0) {
-          unitIcon = '📦';
-          unitLabel = `${amount} unidade${amount > 1 ? 's' : ''}`;
-        } else if (liters > 0) {
-          unitIcon = '💧';
-          unitLabel = `${liters} litro${liters > 1 ? 's' : ''}`;
-        } else if (kg > 0) {
-          unitIcon = '⚖️';
-          unitLabel = `${kg} quilo${kg > 1 ? 's' : ''}`;
-        }
-        
-        return {
-          ...product,
-          amount,
-          kg,
-          liters,
-          unitIcon,
-          unitLabel
-        };
-      });
-      
-      setProducts(produtosComUnidade);
+      console.log('📦 Produtos carregados:', produtos.length);
+      setProducts(produtos);
       
     } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
+      console.error('❌ Erro ao carregar produtos:', error);
+      setError('Erro ao carregar produtos. Tente novamente.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  // Função para forçar recarregamento
+  const handleRefresh = () => {
+    carregarProdutos(true); // true = force refresh
   };
 
   const handleLogout = () => {
@@ -149,6 +131,13 @@ export default function ProductsPage() {
       return;
     }
 
+    // Verifica se tem estoque suficiente
+    const availableStock = getAvailableStock(selectedProduct);
+    if (quantity > availableStock) {
+      setError(`Quantidade indisponível. Estoque atual: ${availableStock} ${getUnitSymbol(selectedProduct)}`);
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     setSuccess('');
@@ -187,9 +176,9 @@ export default function ProductsPage() {
         // 🔥 NOTIFICA A HOME QUE UMA NOVA RESERVA FOI FEITA
         notificarNovaReserva();
         
-        // Atualiza a lista de produtos
+        // FORÇA O RECARREGAMENTO DOS PRODUTOS
         setTimeout(() => {
-          carregarProdutos();
+          carregarProdutos(true); // true = force refresh
         }, 1500);
       }
 
@@ -246,13 +235,25 @@ export default function ProductsPage() {
         <div className="stat-card">
           <TrendingUp className="stat-icon" />
           <div>
-            <span className="stat-label">Mais Vendido</span>
-            <span className="stat-value">Leite</span>
+            <span className="stat-label">Em Estoque</span>
+            <span className="stat-value">
+              {products.filter(p => getAvailableStock(p) > 0).length}
+            </span>
           </div>
         </div>
       </div>
 
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">{success}</div>}
+
       <main className="products-main">
+        {refreshing && (
+          <div className="refreshing-indicator">
+            <RefreshCw size={16} className="spinning" />
+            <span>Atualizando produtos...</span>
+          </div>
+        )}
+
         {products.length > 0 ? (
           <div className="products-grid">
             {products.map((product) => {
@@ -305,28 +306,7 @@ export default function ProductsPage() {
           <div className="empty-state">
             <Package className="empty-icon" />
             <h3 className="empty-title">Nenhum produto encontrado</h3>
-            <p className="empty-text">Comece adicionando seu primeiro produto</p>
-            <button className="btn-primary">
-              <Plus size={20} />
-              <span>Adicionar Produto</span>
-            </button>
-          </div>
-        )}
-
-        {products.length > 0 && (
-          <div className="pagination">
-            <p className="pagination-info">
-              Mostrando <span className="font-medium">1</span> a{' '}
-              <span className="font-medium">{Math.min(8, products.length)}</span> de{' '}
-              <span className="font-medium">{products.length}</span> produtos
-            </p>
-            <div className="pagination-controls">
-              <button className="pagination-button" disabled>Anterior</button>
-              <button className="pagination-button active">1</button>
-              <button className="pagination-button">2</button>
-              <button className="pagination-button">3</button>
-              <button className="pagination-button">Próxima</button>
-            </div>
+            <p className="empty-text">Não há produtos disponíveis no momento</p>
           </div>
         )}
       </main>

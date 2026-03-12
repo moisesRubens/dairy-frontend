@@ -84,7 +84,7 @@ useEffect(() => {
       const [productsData, ordersResponse, retiradasData] = await Promise.all([
         getProducts(),
         orderService.getAll({ date: hojeStr }),
-        getRetiradasPorPontoVenda()
+        getRetiradasPorPontoVenda(currentUser?.id) // ← PASSA O ID DO USUÁRIO!
       ]);
       
       console.log('📦 Produtos carregados:', productsData.length);
@@ -279,6 +279,8 @@ useEffect(() => {
   // FUNÇÃO CORRIGIDA - Retornar ao estoque
   // Home.tsx - A função handleReturnAllToStock permanece EXATAMENTE como estava na versão antiga
 
+  // Home.tsx - Função handleReturnAllToStock CORRIGIDA
+
   const handleReturnAllToStock = async () => {
     if (retiradas.length === 0) {
       setError('Não há retiradas para retornar ao estoque');
@@ -303,24 +305,23 @@ useEffect(() => {
       
       console.log(`🔄 Retornando produtos ao estoque - Ponto: ${salePointId}`);
       
-      // Chama a função do service (agora apontando para o novo endpoint)
+      // Chama a função do service
       const response = await retornarTodasRetiradasAoEstoque(salePointId);
-      setRetiradas('');
+      
       console.log('✅ Resposta completa:', response);
       
-      // Verifica o formato da resposta
+      // 🔥 IMPORTANTE: Atualiza os dados com base na resposta da API
       if (response && response.sucessos) {
         setSuccess(`${response.sucessos.length} produtos retornados ao estoque com sucesso!`);
-      } else if (response && Array.isArray(response)) {
-        setSuccess(`${response.length} produtos retornados ao estoque com sucesso!`);
+        
+        // FORÇA O RECARREGAMENTO DOS DADOS com timestamp anti-cache
+        await loadInitialData();
+        
       } else {
         setSuccess('Produtos retornados ao estoque com sucesso!');
+        // Recarrega mesmo sem resposta detalhada
+        await loadInitialData();
       }
-      
-      // Recarrega os dados
-      setTimeout(() => {
-        loadInitialData();
-      }, 1500);
       
     } catch (error: any) {
       console.error('❌ Erro ao retornar produtos:', error);

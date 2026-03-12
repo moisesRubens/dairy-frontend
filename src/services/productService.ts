@@ -89,20 +89,30 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
   try {
     console.log('🔍 Chamando getProducts...');
     const token = authService.getToken();
-    const url = `${API_URL}/produto/`;
+    
+    // SEMPRE ADICIONA TIMESTAMP PARA EVITAR CACHE
+    const timestamp = new Date().getTime();
+    const url = `${API_URL}/produto/?_=${timestamp}`;
+    
+    console.log('📤 URL com anti-cache:', url);
     
     const response = await fetch(url, {
       headers: { 
         'Authorization': `Bearer ${token}`,
-        "Content-Type": "application/json" 
+        "Content-Type": "application/json",
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     });
     
     if (!response.ok) {
+      console.error(`❌ Erro HTTP: ${response.status}`);
       return [];
     }
     
     const data = await response.json();
+    console.log('📦 Dados recebidos da API:', data);
     
     // A API retorna { products: [...] }
     const products = data.products || [];
@@ -116,6 +126,8 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
 
 // productService.ts - Corrigir a função getRetiradasPorPontoVenda
 
+// productService.ts - Função getRetiradasPorPontoVenda CORRIGIDA com anti-cache
+
 export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<RetiradaResponse[]> {
   try {
     console.log(`\n=== getRetiradasPorPontoVenda(${salePointId || 'usuário logado'}) ===`);
@@ -127,21 +139,35 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
       return [];
     }
     
-    // Monta a URL - se salePointId for undefined, não passa o parâmetro
+    // ADICIONA TIMESTAMP PARA EVITAR CACHE
+    const timestamp = new Date().getTime();
+    
+    // Monta a URL com parâmetros anti-cache
     let url = `${API_URL}/produto/retiradas`;
+    const params = new URLSearchParams();
+    
     if (salePointId) {
-      url += `?sale_point_id=${salePointId}`;
-      console.log(`📤 Buscando retiradas do ponto específico: ${salePointId}`);
-    } else {
-      console.log(`📤 Buscando retiradas do ponto logado (do token)`);
+      params.append('sale_point_id', salePointId.toString());
     }
     
-    console.log('📤 URL:', url);
+    // ADICIONA PARÂMETRO ANTI-CACHE
+    params.append('_', timestamp.toString());
+    
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+    
+    console.log('📤 URL com anti-cache:', url);
     
     const response = await fetch(url, {
       headers: { 
         'Authorization': `Bearer ${token}`,
-        "Content-Type": "application/json" 
+        'Content-Type': 'application/json',
+        // HEADERS ANTI-CACHE
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     });
     
@@ -151,7 +177,7 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
     }
     
     const data = await response.json();
-    console.log('📦 Dados brutos da API:', data);
+    console.log('📦 Dados brutos da API (com anti-cache):', data);
     
     // A API retorna { retiradas: [...] }
     if (data && data.retiradas && Array.isArray(data.retiradas)) {
@@ -167,12 +193,12 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
           product_id: item.product_id,
           name: item.name || item.nome || '',
           price: 0, // Será preenchido depois com o preço do produto
-          quantidade_retirada: quantidadeDisponivel, // ← AGORA CORRETO!
+          quantidade_retirada: quantidadeDisponivel,
           unidade_retirada: item.unidade || 'amount',
           data_retirada: item.data || new Date().toISOString(),
           observacao: item.observacao || null,
           sale_point_id: item.sale_point_id || salePointId || 0,
-          status: item.status || false  // Adiciona o status
+          status: item.status || false
         };
       });
     }
