@@ -128,7 +128,7 @@ export async function getProducts(): Promise<ProductWithUnit[]> {
 
 // productService.ts - Função getRetiradasPorPontoVenda CORRIGIDA com anti-cache
 
-export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<RetiradaResponse[]> {
+export async function getRetiradasPorPontoVenda(salePointId?: number, date?: Date): Promise<RetiradaResponse[]> {
   try {
     console.log(`\n=== getRetiradasPorPontoVenda(${salePointId || 'usuário logado'}) ===`);
     
@@ -143,11 +143,24 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
     const timestamp = new Date().getTime();
     
     // Monta a URL com parâmetros anti-cache
-    let url = `${API_URL}/produto/retiradas`;
+    let url = `${API_URL}/auth/${salePointId}/retiradas`;
     const params = new URLSearchParams();
     
     if (salePointId) {
       params.append('sale_point_id', salePointId.toString());
+    }
+    
+    // ADICIONA FILTRO DE DATA SE FORNECIDO
+    if (date) {
+      // Formata a data para YYYY-MM-DD
+      const dataFormatada = date.toISOString().split('T')[0];
+      params.append('data', dataFormatada);
+      console.log(`📅 Filtrando retiradas para data: ${dataFormatada}`);
+    } else {
+      // SE NÃO FORNECEU DATA, USA A DATA ATUAL
+      const dataHoje = new Date().toISOString().split('T')[0];
+      params.append('data', dataHoje);
+      console.log(`📅 Usando data atual: ${dataHoje}`);
     }
     
     // ADICIONA PARÂMETRO ANTI-CACHE
@@ -182,7 +195,7 @@ export async function getRetiradasPorPontoVenda(salePointId?: number): Promise<R
     // A API retorna { retiradas: [...] }
     if (data && data.retiradas && Array.isArray(data.retiradas)) {
       const retiradas = data.retiradas;
-      console.log(`📦 Encontradas ${retiradas.length} retiradas`);
+      console.log(`📦 Encontradas ${retiradas.length} retiradas para o dia ${date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}`);
       
       return retiradas.map((item: any) => {
         // CALCULA CORRETAMENTE a quantidade disponível

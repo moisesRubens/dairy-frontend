@@ -1,4 +1,4 @@
-// SalePoint.tsx
+// SalePoint.tsx - Completo e Corrigido
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/AuthService';
@@ -8,7 +8,7 @@ import { Trash2, ShoppingCart, RotateCcw, ChevronDown, ChevronUp } from 'lucide-
 import type { SalePoint } from '../types/SalePoint';
 import type { Order } from '../types/Order';
 import type { ProductWithUnit, RetiradaResponse } from '../types/Product';
-import '../styles/SalePoint.css'; // Vamos criar um CSS específico
+import '../styles/SalePoint.css';
 
 type OrderItem = {
   product_id: number;
@@ -65,8 +65,7 @@ function SalesPointsPage() {
     }
   }, [currentUser]);
 
-  // No componente SalePoint.tsx, na função loadAllSalePoints:
-
+  // FUNÇÃO loadAllSalePoints CORRIGIDA
   const loadAllSalePoints = async () => {
     try {
       setGlobalLoading(true);
@@ -87,10 +86,8 @@ function SalesPointsPage() {
       const salePointsWithData = await Promise.all(
         salePointsData.map(async (salePoint: SalePoint) => {
           try {
-            // 🔥 USAR O NOVO MÉTODO AQUI 🔥
             const orders = await orderService.getOrdersBySalePoint(salePoint.id, hojeStr);
             
-            // Calcular receita do dia
             const todayRevenue = orders.reduce(
               (sum: number, order: Order) => sum + order.total_value, 
               0
@@ -99,8 +96,12 @@ function SalesPointsPage() {
             // Buscar retiradas para este ponto
             const retiradasData = await getRetiradasPorPontoVenda(salePoint.id);
             
+            // 🔥 FILTRO IMPORTANTE: Pega apenas retiradas com status true (ativas)
+            const retiradasAtivas = retiradasData.filter(retirada => retirada.status === true);
+            console.log(`📦 Ponto ${salePoint.name} - Retiradas ativas:`, retiradasAtivas.length);
+            
             // Enriquecer retiradas com preço dos produtos
-            const retiradasComPreco = retiradasData.map(retirada => {
+            const retiradasComPreco = retiradasAtivas.map(retirada => {
               const product = productsData.find(p => p.id === retirada.product_id);
               return {
                 ...retirada,
@@ -112,7 +113,7 @@ function SalesPointsPage() {
               ...salePoint,
               todayOrders: orders,
               todayRevenue,
-              retiradas: retiradasComPreco,
+              retiradas: retiradasComPreco, // Agora só vem as ativas
               orderItems: [],
               quantities: {},
               isExpanded: salePoint.id === currentUser?.id,
@@ -261,7 +262,6 @@ function SalesPointsPage() {
         }
       }
 
-      // Mapear itens
       const items = salePoint.orderItems.map(item => {
         const baseItem = { product_id: Number(item.product_id) };
 
@@ -281,7 +281,6 @@ function SalesPointsPage() {
 
       await orderService.create(orderData);
       
-      // Recarregar dados do ponto
       await refreshSalePointData(salePointId);
       
       updateSalePointState(salePointId, { 
@@ -346,18 +345,22 @@ function SalesPointsPage() {
     }
   };
 
+  // FUNÇÃO refreshSalePointData CORRIGIDA
   const refreshSalePointData = async (salePointId: number) => {
     try {
       const hoje = new Date();
       const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
-      // 🔥 USAR O NOVO MÉTODO AQUI 🔥
       const [orders, retiradasData] = await Promise.all([
         orderService.getOrdersBySalePoint(salePointId, hojeStr),
-        getRetiradasPorPontoVenda(salePointId)
+        getRetiradasPorPontoVenda(salePointId, new Date())
       ]);
 
-      const retiradasComPreco = retiradasData.map(retirada => {
+      // 🔥 FILTRO IMPORTANTE: Pega apenas retiradas com status true (ativas)
+      const retiradasAtivas = retiradasData.filter(retirada => retirada.status === true);
+      console.log(`📦 Ponto ${salePointId} - Retiradas ativas:`, retiradasAtivas.length);
+
+      const retiradasComPreco = retiradasAtivas.map(retirada => {
         const product = products.find(p => p.id === retirada.product_id);
         return {
           ...retirada,

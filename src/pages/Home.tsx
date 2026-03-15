@@ -84,7 +84,7 @@ useEffect(() => {
       const [productsData, ordersResponse, retiradasData] = await Promise.all([
         getProducts(),
         orderService.getAll({ date: hojeStr }),
-        getRetiradasPorPontoVenda(currentUser?.id) // ← PASSA O ID DO USUÁRIO!
+        getRetiradasPorPontoVenda(currentUser?.id) 
       ]);
       
       console.log('📦 Produtos carregados:', productsData.length);
